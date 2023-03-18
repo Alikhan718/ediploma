@@ -1,4 +1,3 @@
-
 # E-Diploma
 
 E-Diploma - is an online portal for diploma verification in the Republic of Kazakhstan
@@ -10,8 +9,7 @@ E-Diploma - is an online portal for diploma verification in the Republic of Kaza
 - [@damn-glitch](https://github.com/damn-glitch)
 
 
-![Logo](https://lh3.googleusercontent.com/pw/AMWts8BxKEjMofSPjFGO44QA-ZvKBHeyhlvDRXLjcM8GkR23AAK12IPvI9ikE6ATNUGDbUbvQNeMGn_wa6I0g9958Da3gFyNcA0JKgijiWsFsctso_EgjhiH8msLhzKjalsIYmakoyisPBlhdK2-LAGDAlzk=s944-no?authuser=0)
+![Logo](https://lh3.googleusercontent.com/pw/AMWts8DGvdw3nQwEktplkH6dtqx1tpzWoLDt1C237fD3jYAwU-Uu2hTWXHt7UYS-zWSdOTHuCsOtpJefN6fu6dPpz5lPXblOTm8NOhpwKyzhnrHVFawP3bmTXo_0cpT7nIEsE6Xh3WkiexZxPv4vYUiORtFU=w843-h813-no?authuser=0)
 
 
 ## Developed by JASAIM LLC in 2023
-
