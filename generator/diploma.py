@@ -1,12 +1,15 @@
+#import os
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 import qrcode
-#import os
+#import config
 from config import *
 
 data = pd.read_excel(excel_file)
 template = Image.open(diploma_template)
-font = ImageFont.truetype('arial', size=45)
+font_name = ImageFont.truetype(font_path, size=font_size)
+font_details = ImageFont.truetype(font_path, size=40)
+
 # Create a folder for saving the diploma images
 # os.makedirs('Diplomas', exist_ok=True)
 for index, row in data.iterrows():
@@ -24,8 +27,13 @@ for index, row in data.iterrows():
     draw = ImageDraw.Draw(diploma)
 
     # Draw the student's name and degree information on the diploma.
-    draw.text((850, 600), name, font=font, fill='black')
-    draw.text((580, 830), degree, font=font, fill='black')
+    text_width, text_height = draw.textsize(name, font_name)
+    x = (diploma.width - text_width) / 2
+    draw.text((x, 550), name, font=font_name, fill=font_color)
+
+    text_width, text_height = draw.textsize(degree, font_details)
+    x = (diploma.width - text_width) / 2
+    draw.text((x, 850), degree, font=font_details, fill=font_color)
 
     #Convert image mode to RGB
     if diploma.mode != 'RGB':
