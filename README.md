@@ -16,6 +16,7 @@ Platform - Web Platform that represents all the Diplomas and verifies their vali
 
 
 ![Logo](https://lh3.googleusercontent.com/pw/AMWts8DGvdw3nQwEktplkH6dtqx1tpzWoLDt1C237fD3jYAwU-Uu2hTWXHt7UYS-zWSdOTHuCsOtpJefN6fu6dPpz5lPXblOTm8NOhpwKyzhnrHVFawP3bmTXo_0cpT7nIEsE6Xh3WkiexZxPv4vYUiORtFU=w843-h813-no?authuser=0)
+<img src="https://mma.prnewswire.com/media/1513369/Educative_Logo.jpg"  width="60%" height="30%">
 
 
 ## Developed by JASAIM LLC in 2023
