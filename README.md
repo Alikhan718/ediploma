@@ -14,7 +14,6 @@ Platform - Web Platform that represents all the Diplomas and verifies their vali
 - [@Alikhan718](https://github.com/Alikhan718)
 - [@damn-glitch](https://github.com/damn-glitch)
 
-<img src="https://lh3.googleusercontent.com/pw/AMWts8DGvdw3nQwEktplkH6dtqx1tpzWoLDt1C237fD3jYAwU-Uu2hTWXHt7UYS-zWSdOTHuCsOtpJefN6fu6dPpz5lPXblOTm8NOhpwKyzhnrHVFawP3bmTXo_0cpT7nIEsE6Xh3WkiexZxPv4vYUiORtFU=w843-h813-no?authuser=0"  width="20%" height="20%">
 
-
+<img src="https://lh3.googleusercontent.com/pw/AMWts8DGvdw3nQwEktplkH6dtqx1tpzWoLDt1C237fD3jYAwU-Uu2hTWXHt7UYS-zWSdOTHuCsOtpJefN6fu6dPpz5lPXblOTm8NOhpwKyzhnrHVFawP3bmTXo_0cpT7nIEsE6Xh3WkiexZxPv4vYUiORtFU=w843-h813-no?authuser=0"  width="5%" height="5%">
 ## Developed by JASAIM LLC in 2023
