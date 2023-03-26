@@ -1,4 +1,5 @@
 #import os
+import json
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 import qrcode
@@ -10,9 +11,8 @@ template = Image.open(diploma_template)
 font_name = ImageFont.truetype(font_path, size=font_size)
 font_details = ImageFont.truetype(font_path, size=40)
 
-# Create a folder for saving the diploma images
-# os.makedirs('Diplomas', exist_ok=True)
 for index, row in data.iterrows():
+    ##CREATION OF JPEG IMAGES
     # Get the student's name and degree information from the Excel data.
     name = row['Name']
     if (bachelor == True):
@@ -49,3 +49,16 @@ for index, row in data.iterrows():
 
     # Save the diploma as a new image file.
     diploma.save(f'generator/Diplomas/images/{name}_diploma.jpeg')
+
+
+    ##CREATION OF JSON FILES
+    # Create a dictionary with the row data
+    row_dict = row.to_dict()
+
+    # Convert the dictionary into a JSON string
+    row_json = json.dumps(row_dict)
+
+    # Create a new file with the JSON data
+    filename = f'generator/Diplomas/json/{name}.json'
+    with open(filename, 'w') as f:
+        f.write(row_json)
