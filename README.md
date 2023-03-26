@@ -4,7 +4,9 @@ E-Diploma - is an online portal for diploma verification in the Republic of Kaza
 
 ## Aspects
 Generator - Generates diploma images in jpeg format and json metadata taking excel table as an input
+
 Smart-Contract - ERC-721 Smart-contract template
+
 Platform - Web Platform that represents all the Diplomas and verifies their validity
 
 ## Authors
