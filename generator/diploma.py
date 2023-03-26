@@ -1,5 +1,6 @@
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
+import qrcode
 #import os
 from config import *
 
@@ -29,6 +30,14 @@ for index, row in data.iterrows():
     #Convert image mode to RGB
     if diploma.mode != 'RGB':
         diploma = diploma.convert('RGB')
+
+    #Generate QR Code
+    qr = qrcode.QRCode(box_size=8)
+    qr.add_data(name)
+    qr.make()
+    img_qr = qr.make_image()
+    pos = (diploma.size[0] - img_qr.size[0], diploma.size[1] - img_qr.size[1])
+    diploma.paste(img_qr, pos)
 
     # Save the diploma as a new image file.
     diploma.save(f'generator/Diplomas/images/{name}_diploma.jpeg')
