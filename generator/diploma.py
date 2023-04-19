@@ -6,8 +6,45 @@ import qrcode
 #import config
 from config import *
 
-data = pd.read_excel(excel_file)
-template = Image.open(diploma_template)
+#def rk():
+#    
+#    draw = Image.open("W.png")
+#    draw.show()
+#    x=int(input('are u satisfied?'))
+#    
+#    if(x==1):
+#        return 'W.png'
+#    else:
+#        
+#        Image1=Image.open('B.png')
+#        Image2=Image.open('R.png')
+#        Image3=Image.open('G.png')
+#        Image4=Image.open('C.png')
+        
+        # draw.show()
+        # Image1.show()
+        # Image2.show()
+        # Image3.show()
+        # Image4.show()
+        
+        # z=input('choose template')
+        
+        # if(z=='W'):
+        #     return 'W.png'
+        # elif(z=='R'):
+        #     return 'R.png'
+        # elif(z=='G'):
+        #     return 'G.png'
+        # elif(z=='B'):
+        #     return 'B.png'
+        # else:
+        #     return 'C.png'
+
+
+
+
+data     = pd.read_excel('data.xlsx')
+
 font_name = ImageFont.truetype(font_path, size=font_size)
 font_details = ImageFont.truetype(font_path, size=40)
 
@@ -19,7 +56,20 @@ for index, row in data.iterrows():
         degree = 'Bachelor of ' + row['Degree']
     else:
         degree = 'Master of' + row['Degree']
-
+        
+    c = row['Color']
+    
+    if (c=='B'):
+        template=Image.open('B.png')
+    elif (c=='W'):
+        template=Image.open('W.png')
+    elif (c=='G'):
+        template=Image.open('G.png')
+    elif (c=='R'):
+        template=Image.open('R.png')
+    else:
+        template=Image.open('C.png')
+        
     # Create a copy of the diploma template.
     diploma = template.copy()
 
@@ -48,7 +98,7 @@ for index, row in data.iterrows():
     diploma.paste(img_qr, pos)
 
     # Save the diploma as a new image file.
-    diploma.save(f'generator/Diplomas/images/{name}_diploma.jpeg')
+    diploma.save(f'Diplomas/images/{name}_diploma.jpeg')
 
 
     ##CREATION OF JSON FILES
@@ -59,6 +109,6 @@ for index, row in data.iterrows():
     row_json = json.dumps(row_dict)
 
     # Create a new file with the JSON data
-    filename = f'generator/Diplomas/json/{name}.json'
+    filename = f'Diplomas/json/{name}.json'
     with open(filename, 'w') as f:
         f.write(row_json)
