@@ -7,38 +7,38 @@ import qrcode
 from config import *
 
 #def rk():
-#    
-#    draw = Image.open("W.png")
-#    draw.show()
-#    x=int(input('are u satisfied?'))
-#    
-#    if(x==1):
-#        return 'W.png'
-#    else:
-#        
-#        Image1=Image.open('B.png')
-#        Image2=Image.open('R.png')
-#        Image3=Image.open('G.png')
-#        Image4=Image.open('C.png')
+    
+    # draw = Image.open("W.png")
+    # draw.show()
+    # x=int(input('are u satisfied?'))
+    
+    # if(x==1):
+    #     return 'W.png'
+    # else:
         
-        # draw.show()
-        # Image1.show()
-        # Image2.show()
-        # Image3.show()
-        # Image4.show()
+    #     Image1=Image.open('B.png')
+    #     Image2=Image.open('R.png')
+    #     Image3=Image.open('G.png')
+    #     Image4=Image.open('C.png')
         
-        # z=input('choose template')
+    #     draw.show()
+    #     Image1.show()
+    #     Image2.show()
+    #     Image3.show()
+    #     Image4.show()
         
-        # if(z=='W'):
-        #     return 'W.png'
-        # elif(z=='R'):
-        #     return 'R.png'
-        # elif(z=='G'):
-        #     return 'G.png'
-        # elif(z=='B'):
-        #     return 'B.png'
-        # else:
-        #     return 'C.png'
+    #     z=input('choose template')
+        
+    #     if(z=='W'):
+    #         return 'W.png'
+    #     elif(z=='R'):
+    #         return 'R.png'
+    #     elif(z=='G'):
+    #         return 'G.png'
+    #     elif(z=='B'):
+    #         return 'B.png'
+    #     else:
+    #         return 'C.png'
 
 
 
@@ -59,16 +59,7 @@ for index, row in data.iterrows():
         
     c = row['Color']
     
-    if (c=='B'):
-        template=Image.open('B.png')
-    elif (c=='W'):
-        template=Image.open('W.png')
-    elif (c=='G'):
-        template=Image.open('G.png')
-    elif (c=='R'):
-        template=Image.open('R.png')
-    else:
-        template=Image.open('C.png')
+    template = Image.open(str(c)+'.png')
         
     # Create a copy of the diploma template.
     diploma = template.copy()
