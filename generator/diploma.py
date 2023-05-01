@@ -7,28 +7,28 @@ import qrcode
 from config import *
 
 #def rk():
-    
+
     # draw = Image.open("W.png")
     # draw.show()
     # x=int(input('are u satisfied?'))
-    
+
     # if(x==1):
     #     return 'W.png'
     # else:
-        
+
     #     Image1=Image.open('B.png')
     #     Image2=Image.open('R.png')
     #     Image3=Image.open('G.png')
     #     Image4=Image.open('C.png')
-        
+
     #     draw.show()
     #     Image1.show()
     #     Image2.show()
     #     Image3.show()
     #     Image4.show()
-        
+
     #     z=input('choose template')
-        
+
     #     if(z=='W'):
     #         return 'W.png'
     #     elif(z=='R'):
@@ -43,7 +43,7 @@ from config import *
 
 
 
-data     = pd.read_excel('data.xlsx')
+data     = pd.read_excel('generator\data.xlsx')
 
 font_name = ImageFont.truetype(font_path, size=font_size)
 font_details = ImageFont.truetype(font_path, size=40)
@@ -56,11 +56,11 @@ for index, row in data.iterrows():
         degree = 'Bachelor of ' + row['Degree']
     else:
         degree = 'Master of' + row['Degree']
-        
+
     c = row['Color']
-    
-    template = Image.open(str(c)+'.png')
-        
+
+    template = Image.open('generator\\'+str(c)+'.png')
+
     # Create a copy of the diploma template.
     diploma = template.copy()
 
@@ -89,7 +89,7 @@ for index, row in data.iterrows():
     diploma.paste(img_qr, pos)
 
     # Save the diploma as a new image file.
-    diploma.save(f'Diplomas/images/{name}_diploma.jpeg')
+    diploma.save(f'generator/Diplomas/images/{name}_diploma.jpeg')
 
 
     ##CREATION OF JSON FILES
@@ -100,6 +100,6 @@ for index, row in data.iterrows():
     row_json = json.dumps(row_dict)
 
     # Create a new file with the JSON data
-    filename = f'Diplomas/json/{name}.json'
+    filename = f'generator/Diplomas/json/{name}.json'
     with open(filename, 'w') as f:
         f.write(row_json)
