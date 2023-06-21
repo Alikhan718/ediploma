@@ -67,6 +67,7 @@ for row in sheet.iter_rows(min_row=3, values_only=True):
     with_distinctions_eng.append(row[17])
 
 # Gain all values separately
+counter = 0
 for i in range(len(names_kaz)):
     number = str(numbers[i])
     name_kz = str(names_kaz[i])
@@ -337,30 +338,6 @@ for i in range(len(names_kaz)):
     diploma.save(f'generator/diplo/Diplomas/{name_file}.jpeg', 'JPEG')
 
     # CREATION OF JSON FILES
-    # Create a dictionary with the row data
-    # row_dict = {
-    #     'name': name_en,
-    #     'image': f'https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg',
-    #     'description': f'KBTU 2023 Graduate {name_file}',
-    #     'name_kz': name_kz,
-    #     'name_ru': name_ru,
-    #     'name_en': name_en,
-    #     'protocol_en': protocol_en,
-    #     'degree_en': degree_en,
-    #     'qualification_kz': qualification_kz,
-    #     'qualification_ru': qualification_ru,
-    #     'qualification_en': qualification_en,
-    #     'distinction_en': distinction_en
-    # }
-
-    # # Convert the dictionary into a JSON string
-    # row_json = json.dumps(row_dict)
-
-    # # Create a new file with the JSON data
-    # filename = f'generator/diplo/json/{name_file}.json'
-    # with open(filename, 'w', encoding='utf-8') as f:
-    #     f.write(row_json)
-
     metadata = {
         "description": f"KBTU 2023 Graduate {name_file}",
         "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg",
@@ -409,6 +386,7 @@ for i in range(len(names_kaz)):
     metadata_json = json.dumps(metadata)
 
     # Create a new file with the JSON data
-    filename = f"generator/diplo/json/{name_file}.json"
+    counter += 1
+    filename = f"generator/diplo/json/{counter}.json"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(metadata_json)
