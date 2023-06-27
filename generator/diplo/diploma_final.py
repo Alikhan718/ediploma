@@ -3,19 +3,45 @@ from PIL import Image, ImageDraw, ImageFont
 import qrcode
 import openpyxl
 import textwrap
+import re
+
+# Remove invalid characters
+def sanitize_filename(filename):
+    return re.sub(r'[\\/*?:"<>|\n\t]', '', filename)
+
+
+def draw_distinction_text(draw, font, part_x, part_y, text_lines, color):
+    text_width, text_height = draw.textsize('\n'.join(text_lines), font=font)
+    text_x = part_x - text_width // 2
+    text_y = part_y - text_height // 2
+    for line in text_lines:
+        line_width, line_height = draw.textsize(line, font=font)
+        line_x = text_x + (text_width - line_width) // 2  # Center-align the text
+        draw.text((line_x, text_y), line, fill=color, font=font)
+        text_y += line_height
+
+def wrap_text_with_newlines(text, width):
+    lines = []
+    for part in text.split("\n"):
+        lines.extend(textwrap.wrap(part, width=width))
+    return lines
+
+
 
 # Load the Excel file
-workbook = openpyxl.load_workbook('generator\diplo\data.xlsx', read_only=True, keep_vba=False, data_only=True, keep_links=False)
+workbook = openpyxl.load_workbook('data_bachelor.xlsx')
+
 sheet = workbook.active
 
 # Load template
-template = Image.open('generator\diplo\diploma_template.png')
+template = Image.open('diploma_template.png')
 
 # Set the fonts/ #Need to download them and make a way to them
-font1 = ImageFont.truetype('generator\\diplo\\miamanueva.ttf', size=30)
-font2 = ImageFont.truetype('generator\\diplo\\Alice-Regular.ttf', size=23)
-font3 = ImageFont.truetype('generator\\diplo\\Alice-Regular.ttf', size=15)
-font4 = ImageFont.truetype('generator\\diplo\\Alice-Regular.ttf', size=22)
+font1 = ImageFont.truetype('miamanueva.ttf', size=30)
+font2 = ImageFont.truetype('Alice-Regular.ttf', size=23)
+font3 = ImageFont.truetype('Alice-Regular.ttf', size=15)
+font4 = ImageFont.truetype('Alice-Regular.ttf', size=22)
+font5 = ImageFont.truetype('Alice-Regular.ttf', size=22) ##2a4a62
 
 # Initialize the variables
 # numbers
@@ -44,7 +70,7 @@ with_distinctions_eng = []
 # Iterate through rows and columns starting from row 3
 for row in sheet.iter_rows(min_row=3, values_only=True):
     # numbers
-    numbers.append(row[2])
+    numbers.append(row[0])
     # names
     names_kaz.append(row[3])
     names_rus.append(row[4])
@@ -67,7 +93,6 @@ for row in sheet.iter_rows(min_row=3, values_only=True):
     with_distinctions_eng.append(row[17])
 
 # Gain all values separately
-counter = 0
 for i in range(len(names_kaz)):
     number = str(numbers[i])
     name_kz = str(names_kaz[i])
@@ -76,9 +101,9 @@ for i in range(len(names_kaz)):
     protocol_kz = str(protocols_kaz[i])
     protocol_ru = str(protocols_rus[i])
     protocol_en = str(protocols_eng[i])
-    degree_kz = str(degrees_kaz[i])
-    degree_ru = str(degrees_rus[i])
-    degree_en = str(degrees_eng[i])
+    degree_kz = str(degrees_kaz[i]).upper()
+    degree_ru = str(degrees_rus[i]).upper()
+    degree_en = str(degrees_eng[i]).upper()
     qualification_kz = str(qualifications_kaz[i]).upper()
     qualification_ru = str(qualifications_rus[i]).upper()
     qualification_en = str(qualifications_eng[i]).upper()
@@ -92,6 +117,8 @@ for i in range(len(names_kaz)):
     draw = ImageDraw.Draw(diploma)
     # Make for file name
     name_file = f"{name_en.replace(' ', '_')}_{number}"
+    # Sanitize the filename
+    name_file = sanitize_filename(name_file)
 
     # Calculate the dimensions of each part
     canvas_width, canvas_height = diploma.size
@@ -148,93 +175,83 @@ for i in range(len(names_kaz)):
         draw.text((text_x, name_y_en), line, fill='#FFD700', font=font1)
         name_y_en += name_height_en + line_spacing
 
-    # Add with distinction
+    # Add with distinction (only if not empty)
     if distinction_ru != "":
         # Calculate the center coordinates for each part
         part1_y = canvas_height * 8.5 // 14
         part2_y = canvas_height * 8.5 // 14
         part3_y = canvas_height * 8.5 // 14
 
-        # Draw the three parts (optional)
-        # draw.line([(part_width, 0), (part_width, canvas_height)], fill='#FFD700', width=2)
-        # draw.line([(part_width * 2, 0), (part_width * 2, canvas_height)], fill='#FFD700', width=2)
-
         # Wrap the text if it exceeds the line width
         distinction_kz_lines = textwrap.wrap(distinction_kz, width=20)
         distinction_ru_lines = textwrap.wrap(distinction_ru, width=20)
         distinction_en_lines = textwrap.wrap(distinction_en, width=20)
 
-        # Draw the names in the middle of each part
-        distinction_width_kz, distinction_height_kz = draw.textsize('\n'.join(distinction_kz_lines), font=font2)
-        distinction_x_kz = part1_x - distinction_width_kz // 2
-        distinction_y_kz = part1_y - distinction_height_kz // 2
-        for line in distinction_kz_lines:
-            text_width, text_height = draw.textsize(line, font=font2)
-            text_x = distinction_x_kz + (distinction_width_kz - text_width) // 2  # Center-align the text
-            draw.text((text_x, distinction_y_kz), line, fill='#5c92c7', font=font2)
-            distinction_y_kz += distinction_height_kz
+        # Draw the distinction text in the middle of each part
+        draw_distinction_text(draw, font2, part1_x, part1_y, distinction_kz_lines, '#5c92c7')
+        draw_distinction_text(draw, font2, part2_x, part2_y, distinction_ru_lines, '#5c92c7')
+        draw_distinction_text(draw, font2, part3_x, part3_y, distinction_en_lines, '#5c92c7')
 
-        distinction_width_ru, distinction_height_ru = draw.textsize('\n'.join(distinction_ru_lines), font=font2)
-        distinction_x_ru = part2_x - distinction_width_ru // 2
-        distinction_y_ru = part2_y - distinction_height_ru // 2
-        for line in distinction_ru_lines:
-            text_width, text_height = draw.textsize(line, font=font2)
-            text_x = distinction_x_ru + (distinction_width_ru - text_width) // 2  # Center-align the text
-            draw.text((text_x, distinction_y_ru), line, fill='#5c92c7', font=font2)
-            distinction_y_ru += distinction_height_ru
 
-        distinction_width_en, distinction_height_en = draw.textsize('\n'.join(distinction_en_lines), font=font2)
-        distinction_x_en = part3_x - distinction_width_en // 2
-        distinction_y_en = part3_y - distinction_height_en // 2
-        for line in distinction_en_lines:
-            text_width, text_height = draw.textsize(line, font=font2)
-            text_x = distinction_x_en + (distinction_width_en - text_width) // 2  # Center-align the text
-            draw.text((text_x, distinction_y_en), line, fill='#5c92c7', font=font2)
-            distinction_y_en += distinction_height_en
 
     # Qualifications
     # Calculate the center coordinates for each part
-    part1_y = canvas_height // 2.02
-    part2_y = canvas_height // 1.88
-    part3_y = canvas_height // 1.88
+    part1_y = canvas_height // 2.5
+    part2_y = canvas_height // 2.5
+    part3_y = canvas_height // 2.5
 
     # Draw the three parts (optional)
     # draw.line([(part_width, 0), (part_width, canvas_height)], fill='#FFD700', width=2)
     # draw.line([(part_width * 2, 0), (part_width * 2, canvas_height)], fill='#FFD700', width=2)
+    degree_color = "#2a4a62"
+    qualification_color = "#5c92c7"
+
+    # Combine the degree and qualification text
+    qualification_kz = qualification_kz + "\n" + degree_kz
+    qualification_ru = degree_ru + "\n" + qualification_ru
+    qualification_en = degree_en + "\n" + qualification_en
 
     # Wrap the text if it exceeds the line width
-    qualification_kz_lines = textwrap.wrap(qualification_kz, width=35)
-    qualification_ru_lines = textwrap.wrap(qualification_ru, width=35)
-    qualification_en_lines = textwrap.wrap(qualification_en, width=35)
+    # Wrap the text if it exceeds the line width
+    qualification_kz_lines = wrap_text_with_newlines(qualification_kz, width=35)
+    qualification_ru_lines = wrap_text_with_newlines(qualification_ru, width=35)
+    qualification_en_lines = wrap_text_with_newlines(qualification_en, width=35)
 
-    # Draw the names in the middle of each part
-    qualification_width_kz, qualification_height_kz = draw.textsize('\n'.join(qualification_kz_lines), font=font2)
-    qualification_x_kz = part1_x - qualification_width_kz // 2
-    qualification_y_kz = part1_y - qualification_height_kz // 2
+    # Draw the text for the Kazakh language
+    y = part1_y
     for line in qualification_kz_lines:
+        if line.strip() == degree_kz.strip():
+            color = degree_color
+        else:
+            color = qualification_color
         text_width, text_height = draw.textsize(line, font=font2)
-        text_x = qualification_x_kz + (qualification_width_kz - text_width) // 2  # Center-align the text
-        draw.text((text_x, qualification_y_kz), line, fill='#5c92c7', font=font2)
-        qualification_y_kz += text_height
+        text_x = part1_x - text_width // 2
+        draw.text((text_x, y), line, fill=color, font=font2)
+        y += text_height
 
-    qualification_width_ru, qualification_height_ru = draw.textsize('\n'.join(qualification_ru_lines), font=font2)
-    qualification_x_ru = part2_x - qualification_width_ru // 2
-    qualification_y_ru = part2_y - qualification_height_ru // 2
+    # Draw the text for the Russian language
+    y = part2_y
     for line in qualification_ru_lines:
+        if line.strip() == degree_ru.strip():
+            color = degree_color
+        else:
+            color = qualification_color
         text_width, text_height = draw.textsize(line, font=font2)
-        text_x = qualification_x_ru + (qualification_width_ru - text_width) // 2  # Center-align the text
-        draw.text((text_x, qualification_y_ru), line, fill='#5c92c7', font=font2)
-        qualification_y_ru += text_height
+        text_x = part2_x - text_width // 2
+        draw.text((text_x, y), line, fill=color, font=font2)
+        y += text_height
 
-    qualification_width_en, qualification_height_en = draw.textsize('\n'.join(qualification_en_lines), font=font2)
-    qualification_x_en = part3_x - qualification_width_en // 2
-    qualification_y_en = part3_y - qualification_height_en // 2
+    # Draw the text for the English language
+    y = part3_y
     for line in qualification_en_lines:
+        if line.strip() == degree_en.strip():
+            color = degree_color
+        else:
+            color = qualification_color
         text_width, text_height = draw.textsize(line, font=font2)
-        text_x = qualification_x_en + (qualification_width_en - text_width) // 2  # Center-align the text
-        draw.text((text_x, qualification_y_en), line, fill='#5c92c7', font=font2)
-        qualification_y_en += text_height
-
+        text_x = part3_x - text_width // 2
+        draw.text((text_x, y), line, fill=color, font=font2)
+        y += text_height
     # Protocols
     # Calculate the center coordinates for each part
     part1_y = canvas_height // 4.2
@@ -246,7 +263,7 @@ for i in range(len(names_kaz)):
     # draw.line([(part_width * 2, 0), (part_width * 2, canvas_height)], fill='#FFD700', width=2)
 
     # Wrap the text if it exceeds the line width
-    protocol_kz_lines = textwrap.wrap(protocol_kz, width=35)
+    protocol_kz_lines = textwrap.wrap(protocol_kz, width=45)
     protocol_ru_lines = textwrap.wrap(protocol_ru, width=35)
     protocol_en_lines = textwrap.wrap(protocol_en, width=35)
 
@@ -335,9 +352,33 @@ for i in range(len(names_kaz)):
     diploma.paste(img_qr, qr_pos)
 
     # Save the diploma as a new image file.
-    diploma.save(f'generator/diplo/Diplomas/{name_file}.jpeg', 'JPEG')
+    diploma.save(f'Diplomas/{name_file}.jpeg', 'JPEG')
 
     # CREATION OF JSON FILES
+    # Create a dictionary with the row data
+    # row_dict = {
+    #     'name': name_en,
+    #     'image': f'https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg',
+    #     'description': f'KBTU 2023 Graduate {name_file}',
+    #     'name_kz': name_kz,
+    #     'name_ru': name_ru,
+    #     'name_en': name_en,
+    #     'protocol_en': protocol_en,
+    #     'degree_en': degree_en,
+    #     'qualification_kz': qualification_kz,
+    #     'qualification_ru': qualification_ru,
+    #     'qualification_en': qualification_en,
+    #     'distinction_en': distinction_en
+    # }
+
+    # # Convert the dictionary into a JSON string
+    # row_json = json.dumps(row_dict)
+
+    # # Create a new file with the JSON data
+    # filename = f'generator/diplo/json/{name_file}.json'
+    # with open(filename, 'w', encoding='utf-8') as f:
+    #     f.write(row_json)
+
     metadata = {
         "description": f"KBTU 2023 Graduate {name_file}",
         "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg",
@@ -386,7 +427,7 @@ for i in range(len(names_kaz)):
     metadata_json = json.dumps(metadata)
 
     # Create a new file with the JSON data
-    counter += 1
-    filename = f"generator/diplo/json/{counter}.json"
+    filename = f"json/{name_file}.json"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(metadata_json)
+    #break
