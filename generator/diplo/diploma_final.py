@@ -27,7 +27,6 @@ def wrap_text_with_newlines(text, width):
     return lines
 
 
-
 # Load the Excel file
 workbook = openpyxl.load_workbook('data_bachelor.xlsx')
 
@@ -41,7 +40,7 @@ font1 = ImageFont.truetype('miamanueva.ttf', size=30)
 font2 = ImageFont.truetype('Alice-Regular.ttf', size=23)
 font3 = ImageFont.truetype('Alice-Regular.ttf', size=15)
 font4 = ImageFont.truetype('Alice-Regular.ttf', size=22)
-font5 = ImageFont.truetype('Alice-Regular.ttf', size=22) ##2a4a62
+font5 = ImageFont.truetype('Alice-Regular.ttf', size=22)  ##2a4a62
 
 # Initialize the variables
 # numbers
@@ -67,6 +66,7 @@ with_distinctions_kaz = []
 with_distinctions_rus = []
 with_distinctions_eng = []
 
+fullMetadata = "["
 # Iterate through rows and columns starting from row 3
 for row in sheet.iter_rows(min_row=3, values_only=True):
     # numbers
@@ -93,23 +93,24 @@ for row in sheet.iter_rows(min_row=3, values_only=True):
     with_distinctions_eng.append(row[17])
 
 # Gain all values separately
+counter = 1
 for i in range(len(names_kaz)):
-    number = str(numbers[i])
-    name_kz = str(names_kaz[i])
-    name_ru = str(names_rus[i])
-    name_en = str(names_eng[i])
-    protocol_kz = str(protocols_kaz[i])
-    protocol_ru = str(protocols_rus[i])
-    protocol_en = str(protocols_eng[i])
-    degree_kz = str(degrees_kaz[i]).upper()
-    degree_ru = str(degrees_rus[i]).upper()
-    degree_en = str(degrees_eng[i]).upper()
-    qualification_kz = str(qualifications_kaz[i]).upper()
-    qualification_ru = str(qualifications_rus[i]).upper()
-    qualification_en = str(qualifications_eng[i]).upper()
-    distinction_kz = str(with_distinctions_kaz[i]).upper()
-    distinction_ru = str(with_distinctions_rus[i]).upper()
-    distinction_en = str(with_distinctions_eng[i]).upper()
+    number = str(numbers[i]).strip()
+    name_kz = str(names_kaz[i]).strip()
+    name_ru = str(names_rus[i]).strip()
+    name_en = str(names_eng[i]).strip()
+    protocol_kz = str(protocols_kaz[i]).strip()
+    protocol_ru = str(protocols_rus[i]).strip()
+    protocol_en = str(protocols_eng[i]).strip()
+    degree_kz = str(degrees_kaz[i]).upper().strip()
+    degree_ru = str(degrees_rus[i]).upper().strip()
+    degree_en = str(degrees_eng[i]).upper().strip()
+    qualification_kz = str(qualifications_kaz[i]).upper().strip()
+    qualification_ru = str(qualifications_rus[i]).upper().strip()
+    qualification_en = str(qualifications_eng[i]).upper().strip()
+    distinction_kz = str(with_distinctions_kaz[i]).upper().strip()
+    distinction_ru = str(with_distinctions_rus[i]).upper().strip()
+    distinction_en = str(with_distinctions_eng[i]).upper().strip()
 
     # Create a copy of the diploma template.
     diploma = template.copy().convert('RGB')
@@ -192,8 +193,6 @@ for i in range(len(names_kaz)):
         draw_distinction_text(draw, font2, part2_x, part2_y, distinction_ru_lines, '#5c92c7')
         draw_distinction_text(draw, font2, part3_x, part3_y, distinction_en_lines, '#5c92c7')
 
-
-
     # Qualifications
     # Calculate the center coordinates for each part
     part1_y = canvas_height // 2.5
@@ -210,7 +209,6 @@ for i in range(len(names_kaz)):
     qualification_kz = qualification_kz + "\n" + degree_kz
     qualification_ru = degree_ru + "\n" + qualification_ru
     qualification_en = degree_en + "\n" + qualification_en
-
     # Wrap the text if it exceeds the line width
     # Wrap the text if it exceeds the line width
     qualification_kz_lines = wrap_text_with_newlines(qualification_kz, width=35)
@@ -294,8 +292,7 @@ for i in range(len(names_kaz)):
         text_x = protocol_x_en + (protocol_width_en - text_width) // 2  # Center-align the text
         draw.text((text_x, protocol_y_en), line, fill='#5c92c7', font=font4)
         protocol_y_en += protocol_height_en + 2  # Add a small fixed spacing between lines
-
-    # Study type
+        # Study type
     # Calculate the center coordinates for each part
     part1_y = canvas_height * 2 // 3
     part2_y = canvas_height * 2 // 3
@@ -342,7 +339,7 @@ for i in range(len(names_kaz)):
     qr_size = int(diploma.width * (1.6 / 23))
 
     qr = qrcode.QRCode(box_size=1)
-    qr.add_data(f'ediplomas/kbtu/{name_en}')  # do after we do portal
+    qr.add_data(f'https://ediploma.kz/')  # do after we do portal
     qr.make(fit=True)
 
     img_qr = qr.make_image(fill_color="black", back_color="white").resize((qr_size, qr_size), Image.ANTIALIAS)
@@ -378,56 +375,66 @@ for i in range(len(names_kaz)):
     # filename = f'generator/diplo/json/{name_file}.json'
     # with open(filename, 'w', encoding='utf-8') as f:
     #     f.write(row_json)
-
-    metadata = {
-        "description": f"KBTU 2023 Graduate {name_file}",
-        "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg",
-        "name": name_en,
-        "attributes": [
-            {
-                "name": "name_kz",
-                "value": name_kz
-            },
-            {
-                "name": "name_ru",
-                "value": name_ru
-            },
-            {
-                "name": "name_en",
-                "value": name_en
-            },
-            {
-                "name": "protocol_en",
-                "value": protocol_en
-            },
-            {
-                "name": "degree_en",
-                "value": degree_en
-            },
-            {
-                "name": "qualification_kz",
-                "value": qualification_kz
-            },
-            {
-                "name": "qualification_ru",
-                "value": qualification_ru
-            },
-            {
-                "name": "qualification_en",
-                "value": qualification_en
-            },
-            {
-                "name": "distinction_en",
-                "value": distinction_en
-            }
-        ]
-    }
-
-    # Convert the dictionary into a JSON string
-    metadata_json = json.dumps(metadata)
-
-    # Create a new file with the JSON data
-    filename = f"json/{name_file}.json"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(metadata_json)
-    #break
+    # metadata = {
+    #     "description": f"KBTU 2023 Graduate {name_file}",
+    #     "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg",
+    #     "name": name_en,
+    #     "counter": counter,
+    #     "attributes": [
+    #         {
+    #             "name": "name_kz",
+    #             "value": name_kz
+    #         },
+    #         {
+    #             "name": "name_ru",
+    #             "value": name_ru
+    #         },
+    #         {
+    #             "name": "name_en",
+    #             "value": name_en
+    #         },
+    #         {
+    #             "name": "protocol_en",
+    #             "value": protocol_en
+    #         },
+    #         {
+    #             "name": "degree_ru",
+    #             "value": degree_ru
+    #         },
+    #         {
+    #             "name": "degree_en",
+    #             "value": degree_en
+    #         },
+    #         {
+    #             "name": "qualification_kz",
+    #             "value": qualification_kz
+    #         },
+    #         {
+    #             "name": "qualification_ru",
+    #             "value": qualification_ru
+    #         },
+    #         {
+    #             "name": "qualification_en",
+    #             "value": qualification_en
+    #         },
+    #         {
+    #             "name": "distinction_en",
+    #             "value": distinction_en
+    #         }
+    #     ]
+    # }
+    #
+    # # Convert the dictionary into a JSON string
+    # metadata_json = json.dumps(metadata)
+    # fullMetadata += metadata_json
+    # # Create a new file with the JSON data
+    # filename = f"json/{counter}.json"
+    # counter = +1
+    # with open(filename, "w", encoding="utf-8") as f:
+    #     f.write(metadata_json)
+    # break
+#
+# fullMetadata += "]"
+# with open("fullMetadata.json", "w", encoding="utf-8") as f:
+#     f.write(fullMetadata)
+#
