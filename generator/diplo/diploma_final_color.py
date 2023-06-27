@@ -188,9 +188,9 @@ for name in colors:
             distinction_en_lines = textwrap.wrap(distinction_en, width=20)
 
             # Draw the distinction text in the middle of each part
-            draw_distinction_text(draw, font2, part1_x, part1_y, distinction_kz_lines, '#5c92c7')
-            draw_distinction_text(draw, font2, part2_x, part2_y, distinction_ru_lines, '#5c92c7')
-            draw_distinction_text(draw, font2, part3_x, part3_y, distinction_en_lines, '#5c92c7')
+            draw_distinction_text(draw, font2, part1_x, part1_y, distinction_kz_lines, 'white')
+            draw_distinction_text(draw, font2, part2_x, part2_y, distinction_ru_lines, 'white')
+            draw_distinction_text(draw, font2, part3_x, part3_y, distinction_en_lines, 'white')
 
         # Qualifications
         # Calculate the center coordinates for each part
