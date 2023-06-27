@@ -435,7 +435,7 @@ for i in range(len(names_kaz)):
     counter += 1
     with open(filename, "w", encoding="utf-8") as f:
         f.write(metadata_json)
-    break
+    #break
 
 fullMetadata += "]"
 with open("fullMetadata.json", "w", encoding="utf-8") as f:
