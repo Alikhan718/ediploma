@@ -5,20 +5,23 @@ import openpyxl
 import textwrap
 import re
 
+
 # Remove invalid characters
 def sanitize_filename(filename):
     return re.sub(r'[\\/*?:"<>|\n\t]', '', filename)
 
 
 def draw_distinction_text(draw, font, part_x, part_y, text_lines, color):
-    text_width, text_height = draw.textsize('\n'.join(text_lines), font=font)
+    filtered_lines = [line for line in text_lines if line != "NONE"]
+    text_width, text_height = draw.textsize('\n'.join(filtered_lines), font=font)
     text_x = part_x - text_width // 2
     text_y = part_y - text_height // 2
-    for line in text_lines:
+    for line in filtered_lines:
         line_width, line_height = draw.textsize(line, font=font)
         line_x = text_x + (text_width - line_width) // 2  # Center-align the text
         draw.text((line_x, text_y), line, fill=color, font=font)
         text_y += line_height
+
 
 def wrap_text_with_newlines(text, width):
     lines = []
@@ -99,9 +102,9 @@ for i in range(len(names_kaz)):
     name_kz = str(names_kaz[i]).strip()
     name_ru = str(names_rus[i]).strip()
     name_en = str(names_eng[i]).strip()
-    protocol_kz = str(protocols_kaz[i]).strip()
-    protocol_ru = str(protocols_rus[i]).strip()
-    protocol_en = str(protocols_eng[i]).strip()
+    protocol_kz = str(protocols_kaz[i]).strip().replace("№", "#")
+    protocol_ru = str(protocols_rus[i]).strip().replace("№", "#")
+    protocol_en = str(protocols_eng[i]).strip().replace("№", "#")
     degree_kz = str(degrees_kaz[i]).upper().strip()
     degree_ru = str(degrees_rus[i]).upper().strip()
     degree_en = str(degrees_eng[i]).upper().strip()
@@ -177,7 +180,7 @@ for i in range(len(names_kaz)):
         name_y_en += name_height_en + line_spacing
 
     # Add with distinction (only if not empty)
-    if distinction_ru != "":
+    if distinction_ru is not None and distinction_ru.strip() != "":
         # Calculate the center coordinates for each part
         part1_y = canvas_height * 8.5 // 14
         part2_y = canvas_height * 8.5 // 14
@@ -432,9 +435,8 @@ for i in range(len(names_kaz)):
     counter += 1
     with open(filename, "w", encoding="utf-8") as f:
         f.write(metadata_json)
-    # break
+    break
 
 fullMetadata += "]"
 with open("fullMetadata.json", "w", encoding="utf-8") as f:
     f.write(fullMetadata)
-
