@@ -375,66 +375,66 @@ for i in range(len(names_kaz)):
     # filename = f'generator/diplo/json/{name_file}.json'
     # with open(filename, 'w', encoding='utf-8') as f:
     #     f.write(row_json)
-    # metadata = {
-    #     "description": f"KBTU 2023 Graduate {name_file}",
-    #     "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg",
-    #     "name": name_en,
-    #     "counter": counter,
-    #     "attributes": [
-    #         {
-    #             "name": "name_kz",
-    #             "value": name_kz
-    #         },
-    #         {
-    #             "name": "name_ru",
-    #             "value": name_ru
-    #         },
-    #         {
-    #             "name": "name_en",
-    #             "value": name_en
-    #         },
-    #         {
-    #             "name": "protocol_en",
-    #             "value": protocol_en
-    #         },
-    #         {
-    #             "name": "degree_ru",
-    #             "value": degree_ru
-    #         },
-    #         {
-    #             "name": "degree_en",
-    #             "value": degree_en
-    #         },
-    #         {
-    #             "name": "qualification_kz",
-    #             "value": qualification_kz
-    #         },
-    #         {
-    #             "name": "qualification_ru",
-    #             "value": qualification_ru
-    #         },
-    #         {
-    #             "name": "qualification_en",
-    #             "value": qualification_en
-    #         },
-    #         {
-    #             "name": "distinction_en",
-    #             "value": distinction_en
-    #         }
-    #     ]
-    # }
-    #
-    # # Convert the dictionary into a JSON string
-    # metadata_json = json.dumps(metadata)
-    # fullMetadata += metadata_json
-    # # Create a new file with the JSON data
-    # filename = f"json/{counter}.json"
-    # counter = +1
-    # with open(filename, "w", encoding="utf-8") as f:
-    #     f.write(metadata_json)
+    metadata = {
+        "description": f"KBTU 2023 Graduate {name_file}",
+        "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.jpeg",
+        "name": name_en,
+        "counter": counter,
+        "attributes": [
+            {
+                "name": "name_kz",
+                "value": name_kz
+            },
+            {
+                "name": "name_ru",
+                "value": name_ru
+            },
+            {
+                "name": "name_en",
+                "value": name_en
+            },
+            {
+                "name": "protocol_en",
+                "value": protocol_en
+            },
+            {
+                "name": "degree_ru",
+                "value": degree_ru
+            },
+            {
+                "name": "degree_en",
+                "value": degree_en
+            },
+            {
+                "name": "qualification_kz",
+                "value": qualification_kz
+            },
+            {
+                "name": "qualification_ru",
+                "value": qualification_ru
+            },
+            {
+                "name": "qualification_en",
+                "value": qualification_en
+            },
+            {
+                "name": "distinction_en",
+                "value": distinction_en
+            }
+        ]
+    }
+
+    # Convert the dictionary into a JSON string
+    metadata_json = json.dumps(metadata)
+    fullMetadata += metadata_json + ","
+    # Create a new file with the JSON data
+    filename = f"json/{counter}.json"
+    counter += 1
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(metadata_json)
     # break
-#
-# fullMetadata += "]"
-# with open("fullMetadata.json", "w", encoding="utf-8") as f:
-#     f.write(fullMetadata)
-#
+
+fullMetadata += "]"
+with open("fullMetadata.json", "w", encoding="utf-8") as f:
+    f.write(fullMetadata)
+
