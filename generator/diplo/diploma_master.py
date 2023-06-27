@@ -5,15 +5,17 @@ import openpyxl
 import textwrap
 import re
 
+
 # Remove invalid characters
 def sanitize_filename(filename):
     return re.sub(r'[\\/*?:"<>|\n\t]', '', filename)
+
+
 def wrap_text_with_newlines(text, width):
     lines = []
     for part in text.split("\n"):
         lines.extend(textwrap.wrap(part, width=width))
     return lines
-
 
 
 # Load the Excel file
@@ -29,7 +31,7 @@ font1 = ImageFont.truetype('miamanueva.ttf', size=30)
 font2 = ImageFont.truetype('Alice-Regular.ttf', size=23)
 font3 = ImageFont.truetype('Alice-Regular.ttf', size=15)
 font4 = ImageFont.truetype('Alice-Regular.ttf', size=22)
-font5 = ImageFont.truetype('Alice-Regular.ttf', size=22) ##2a4a62
+font5 = ImageFont.truetype('Alice-Regular.ttf', size=22)  ##2a4a62
 
 # Initialize the variables
 # numbers
@@ -72,16 +74,15 @@ for row in sheet.iter_rows(min_row=3, values_only=True):
     qualifications_kaz.append(row[10])
     qualifications_eng.append(row[14])
 
-
 # Gain all values separately
 for i in range(len(names_kaz)):
     number = str(numbers[i])
     name_kz = str(names_kaz[i])
     name_ru = str(names_rus[i])
     name_en = str(names_eng[i])
-    protocol_kz = str(protocols_kaz[i])
-    protocol_ru = str(protocols_rus[i])
-    protocol_en = str(protocols_eng[i])
+    protocol_kz = str(protocols_kaz[i]).strip().replace("№", "#")
+    protocol_ru = str(protocols_rus[i]).strip().replace("№", "#")
+    protocol_en = str(protocols_eng[i]).strip().replace("№", "#")
     degree_kz = str(degrees_kaz[i]).upper()
     degree_ru = str(degrees_rus[i]).upper()
     degree_en = str(degrees_eng[i]).upper()
@@ -152,7 +153,6 @@ for i in range(len(names_kaz)):
         text_x = name_x_en + (name_width_en - text_width) // 2  # Center-align the text
         draw.text((text_x, name_y_en), line, fill='#FFD700', font=font1)
         name_y_en += name_height_en + line_spacing
-
 
     # Qualifications
     # Calculate the center coordinates for each part
@@ -386,4 +386,4 @@ for i in range(len(names_kaz)):
     filename = f"json/{name_file}.json"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(metadata_json)
-    #break
+    # break
