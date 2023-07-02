@@ -419,10 +419,6 @@ for i in range(len(names_kaz)):
             {
                 "name": "qualification_en",
                 "value": qualification_en
-            },
-            {
-                "name": "distinction_en",
-                "value": distinction_en
             }
         ]
     }
