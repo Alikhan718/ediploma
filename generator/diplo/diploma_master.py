@@ -53,6 +53,7 @@ qualifications_kaz = []
 qualifications_rus = []
 qualifications_eng = []
 
+fullMetadata = "["
 # Iterate through rows and columns starting from row 3
 for row in sheet.iter_rows(min_row=3, values_only=True):
     # numbers
@@ -74,6 +75,7 @@ for row in sheet.iter_rows(min_row=3, values_only=True):
     qualifications_kaz.append(row[10])
     qualifications_eng.append(row[14])
 
+counter = 552
 # Gain all values separately
 for i in range(len(names_kaz)):
     number = str(numbers[i])
@@ -343,6 +345,7 @@ for i in range(len(names_kaz)):
         "description": f"KBTU 2023 Graduate {name_file}",
         "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg",
         "name": name_en,
+        "counter": counter,
         "attributes": [
             {
                 "name": "name_kz",
@@ -359,6 +362,10 @@ for i in range(len(names_kaz)):
             {
                 "name": "protocol_en",
                 "value": protocol_en
+            },
+            {
+                "name": "degree_ru",
+                "value": degree_ru
             },
             {
                 "name": "degree_en",
@@ -381,9 +388,14 @@ for i in range(len(names_kaz)):
 
     # Convert the dictionary into a JSON string
     metadata_json = json.dumps(metadata)
-
+    fullMetadata += metadata_json + ","
     # Create a new file with the JSON data
-    filename = f"json/{name_file}.json"
+    filename = f"json/{counter}.json"
+    counter += 1
     with open(filename, "w", encoding="utf-8") as f:
         f.write(metadata_json)
     # break
+
+fullMetadata += "]"
+with open("fullMetadata.json", "w", encoding="utf-8") as f:
+    f.write(fullMetadata)
