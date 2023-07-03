@@ -75,7 +75,7 @@ for row in sheet.iter_rows(min_row=3, values_only=True):
     qualifications_kaz.append(row[10])
     qualifications_eng.append(row[14])
 
-counter = 552
+counter = 555
 # Gain all values separately
 for i in range(len(names_kaz)):
     number = str(numbers[i])
