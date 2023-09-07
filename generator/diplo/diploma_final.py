@@ -4,6 +4,8 @@ import qrcode
 import openpyxl
 import textwrap
 import re
+import os
+print(os.getcwd())
 
 
 # Remove invalid characters
@@ -31,19 +33,19 @@ def wrap_text_with_newlines(text, width):
 
 
 # Load the Excel file
-workbook = openpyxl.load_workbook('data_bachelor.xlsx')
+workbook = openpyxl.load_workbook('./diplo/data_bachelor.xlsx')
 
 sheet = workbook.active
 
 # Load template
-template = Image.open('diploma_template.png')
+template = Image.open('./diplo/diploma_template.png')
 
 # Set the fonts/ #Need to download them and make a way to them
-font1 = ImageFont.truetype('miamanueva.ttf', size=30)
-font2 = ImageFont.truetype('Alice-Regular.ttf', size=23)
-font3 = ImageFont.truetype('Alice-Regular.ttf', size=15)
-font4 = ImageFont.truetype('Alice-Regular.ttf', size=22)
-font5 = ImageFont.truetype('Alice-Regular.ttf', size=22)  ##2a4a62
+font1 = ImageFont.truetype('./diplo/miamanueva.ttf', size=30)
+font2 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=23)
+font3 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=15)
+font4 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=22)
+font5 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=22)  ##2a4a62
 
 # Initialize the variables
 # numbers
