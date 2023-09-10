@@ -434,7 +434,7 @@ def main():
                 }
             ]
         }
-        imagesDiploma[name_en] = "https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.jpeg"
+        imagesDiploma[name_en] = f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.jpeg"
 
         # Convert the dictionary into a JSON string
         metadata_json = json.dumps(metadata)
