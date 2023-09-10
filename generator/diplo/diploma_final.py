@@ -52,6 +52,7 @@ def main():
     font3 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=15)
     font4 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=22)
     font5 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=22)  ##2a4a62
+    imagesDiploma = {}
 
 
     # Initialize the variables
@@ -388,6 +389,7 @@ def main():
         # filename = f'generator/diplo/json/{name_file}.json'
         # with open(filename, 'w', encoding='utf-8') as f:
         #     f.write(row_json)
+
         metadata = {
             "description": f"KBTU 2023 Graduate {name_file}",
             "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.jpeg",
@@ -432,6 +434,7 @@ def main():
                 }
             ]
         }
+        imagesDiploma[name_en] = "https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.jpeg"
 
         # Convert the dictionary into a JSON string
         metadata_json = json.dumps(metadata)
@@ -446,3 +449,4 @@ def main():
     fullMetadata += "]"
     with open("fullMetadata.json", "w", encoding="utf-8") as f:
         f.write(fullMetadata)
+    return imagesDiploma
