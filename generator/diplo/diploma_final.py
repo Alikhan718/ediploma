@@ -1,16 +1,51 @@
+# run command # nohup python3 -m flask --app diploma_final.py run &
+import os
+
 import json
 from PIL import Image, ImageDraw, ImageFont
 import qrcode
 import openpyxl
 import textwrap
 import re
-from flask import Flask
+from flask import Flask, send_file
 
 app = Flask(__name__)
 
-@app.route("/execute/generator")
+
+@app.route("/")
 def home():
     return main()
+
+
+@app.route("/get-image/<image_name>")
+def get_image(image_name):
+    # Specify the directory where your diploma images are stored
+    image_directory = "./Diplomas"
+
+    # Create the full path to the requested image
+    image_path = os.path.join(image_directory, f"{image_name}")
+    # Check if the image file exists
+    if os.path.isfile(image_path):
+        # Return the image file
+        return send_file(image_path, mimetype="image/jpeg")
+    else:
+        # Return an error message or a default image if the requested image doesn't exist
+        return "Image not found", 404
+
+@app.route("/get-sample-xlsx/<image_name>")
+def get_image(image_name):
+    # Specify the directory where your diploma images are stored
+    image_directory = "./Diplomas"
+
+    # Create the full path to the requested image
+    image_path = os.path.join(image_directory, f"{image_name}")
+    # Check if the image file exists
+    if os.path.isfile(image_path):
+        # Return the image file
+        return send_file(image_path, mimetype="image/jpeg")
+    else:
+        # Return an error message or a default image if the requested image doesn't exist
+        return "Image not found", 404
 
 
 # Remove invalid characters
@@ -39,21 +74,20 @@ def wrap_text_with_newlines(text, width):
 
 def main():
     # Load the Excel file
-    workbook = openpyxl.load_workbook('./diplo/data_bachelor.xlsx')
+    workbook = openpyxl.load_workbook('./data_bachelor_sample.xlsx')
 
     sheet = workbook.active
 
     # Load template
-    template = Image.open('./diplo/diploma_template.png')
+    template = Image.open('./diploma_template.png')
 
     # Set the fonts/ #Need to download them and make a way to them
-    font1 = ImageFont.truetype('./diplo/miamanueva.ttf', size=30)
-    font2 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=23)
-    font3 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=15)
-    font4 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=22)
-    font5 = ImageFont.truetype('./diplo/Alice-Regular.ttf', size=22)  ##2a4a62
+    font1 = ImageFont.truetype('./miamanueva.ttf', size=30)
+    font2 = ImageFont.truetype('./Alice-Regular.ttf', size=23)
+    font3 = ImageFont.truetype('./Alice-Regular.ttf', size=15)
+    font4 = ImageFont.truetype('./Alice-Regular.ttf', size=22)
+    font5 = ImageFont.truetype('./Alice-Regular.ttf', size=22)  ##2a4a62
     imagesDiploma = {}
-
 
     # Initialize the variables
     # numbers
@@ -152,10 +186,6 @@ def main():
         # Define line spacing
         line_spacing = 3
 
-        # Draw the three parts (optional)
-        # draw.line([(part_width, 0), (part_width, canvas_height)], fill='#FFD700', width=2)
-        # draw.line([(part_width * 2, 0), (part_width * 2, canvas_height)], fill='#FFD700', width=2)
-
         # Wrap the text if it exceeds the line width
         name_kz_lines = textwrap.wrap(name_kz, width=25)
         name_ru_lines = textwrap.wrap(name_ru, width=25)
@@ -213,9 +243,6 @@ def main():
         part2_y = canvas_height // 2.5
         part3_y = canvas_height // 2.5
 
-        # Draw the three parts (optional)
-        # draw.line([(part_width, 0), (part_width, canvas_height)], fill='#FFD700', width=2)
-        # draw.line([(part_width * 2, 0), (part_width * 2, canvas_height)], fill='#FFD700', width=2)
         degree_color = "#2a4a62"
         qualification_color = "#5c92c7"
 
@@ -223,7 +250,6 @@ def main():
         qualification_kz = qualification_kz + "\n" + degree_kz
         qualification_ru = degree_ru + "\n" + qualification_ru
         qualification_en = degree_en + "\n" + qualification_en
-        # Wrap the text if it exceeds the line width
         # Wrap the text if it exceeds the line width
         qualification_kz_lines = wrap_text_with_newlines(qualification_kz, width=35)
         qualification_ru_lines = wrap_text_with_newlines(qualification_ru, width=35)
@@ -270,10 +296,6 @@ def main():
         part2_y = canvas_height // 4.2
         part3_y = canvas_height // 4.2
 
-        # Draw the three parts (optional)
-        # draw.line([(part_width, 0), (part_width, canvas_height)], fill='#FFD700', width=2)
-        # draw.line([(part_width * 2, 0), (part_width * 2, canvas_height)], fill='#FFD700', width=2)
-
         # Wrap the text if it exceeds the line width
         protocol_kz_lines = textwrap.wrap(protocol_kz, width=45)
         protocol_ru_lines = textwrap.wrap(protocol_ru, width=35)
@@ -311,10 +333,6 @@ def main():
         part1_y = canvas_height * 2 // 3
         part2_y = canvas_height * 2 // 3
         part3_y = canvas_height * 2 // 3
-
-        # Draw the three parts (optional)
-        # draw.line([(part_width, 0), (part_width, canvas_height)], fill='#FFD700', width=2)
-        # draw.line([(part_width * 2, 0), (part_width * 2, canvas_height)], fill='#FFD700', width=2)
 
         # Wrap the text if it exceeds the line width
         study_kz_lines = textwrap.wrap("ОҚЫТУ НЫСАНЫ КҮНДІЗГІ", width=100)
@@ -365,34 +383,9 @@ def main():
         # Save the diploma as a new image file.
         diploma.save(f'Diplomas/{name_file}.jpeg', 'JPEG')
 
-        # CREATION OF JSON FILES
-        # Create a dictionary with the row data
-        # row_dict = {
-        #     'name': name_en,
-        #     'image': f'https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmda7JpTftUCtushuZeJAhfYTELB1Qoc3AKd9uBd3fTprF/{name_file}.jpeg',
-        #     'description': f'KBTU 2023 Graduate {name_file}',
-        #     'name_kz': name_kz,
-        #     'name_ru': name_ru,
-        #     'name_en': name_en,
-        #     'protocol_en': protocol_en,
-        #     'degree_en': degree_en,
-        #     'qualification_kz': qualification_kz,
-        #     'qualification_ru': qualification_ru,
-        #     'qualification_en': qualification_en,
-        #     'distinction_en': distinction_en
-        # }
-
-        # # Convert the dictionary into a JSON string
-        # row_json = json.dumps(row_dict)
-
-        # # Create a new file with the JSON data
-        # filename = f'generator/diplo/json/{name_file}.json'
-        # with open(filename, 'w', encoding='utf-8') as f:
-        #     f.write(row_json)
-
         metadata = {
             "description": f"KBTU 2023 Graduate {name_file}",
-            "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.jpeg",
+            "image": f"http://generator.ediploma.kz/get-image/{name_file}.jpeg",
             "name": name_en,
             "counter": counter,
             "attributes": [
@@ -434,19 +427,23 @@ def main():
                 }
             ]
         }
-        imagesDiploma[name_en] = f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.jpeg"
+        imagesDiploma[name_en] = f"http://generator.ediploma.kz/get-image/{name_file}.jpeg"
 
         # Convert the dictionary into a JSON string
         metadata_json = json.dumps(metadata)
-        fullMetadata += metadata_json + ","
+        fullMetadata += metadata_json + ("," if i < len(names_kaz) - 1 else "")
         # Create a new file with the JSON data
-        filename = f"./diplo/json/{counter}.json"
+        filename = f"./json/{counter}.json"
         counter += 1
         with open(filename, "w", encoding="utf-8") as f:
             f.write(metadata_json)
-        #break
+        # break
 
     fullMetadata += "]"
-    with open("fullMetadata.json", "w", encoding="utf-8") as f:
+    with open("fullMetadata.json", "w") as f:
         f.write(fullMetadata)
-    return imagesDiploma
+    image_path = os.path.join('./', "fullMetadata.json")
+    # Check if the image file exists
+    if os.path.isfile(image_path):
+        # Return the image file
+        return send_file(image_path)
