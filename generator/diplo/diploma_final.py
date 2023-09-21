@@ -7,10 +7,31 @@ import qrcode
 import openpyxl
 import textwrap
 import re
-from flask import Flask, send_file
+from flask import Flask, send_file, request, redirect
+import os
 
 app = Flask(__name__)
+@app.route('/upload', methods=['GET', "POST"])
+def upload():
+    if request.method == 'POST':
+        # check if the post request has the file part
+        if 'file' not in request.files:
+            print('No file part')
+            return redirect(request.url)
+        file = request.files['file']
+        print(os.path)
+        # If the user does not select a file, the browser submits an
+        # empty file without a filename.
+        if file.filename == '':
+            print('No selected file')
+            return redirect(request.url)
+        print('file')
+        return main(file)
+    return 'here'
 
+
+if __name__ == "__main__":
+    app.run(debug=True)
 
 @app.route("/")
 def home():
@@ -33,7 +54,7 @@ def get_image(image_name):
         return "Image not found", 404
 
 @app.route("/get-sample-xlsx/<image_name>")
-def get_sample(image_name):
+def get_image_1(image_name):
     # Specify the directory where your diploma images are stored
     image_directory = "./Diplomas"
 
@@ -72,9 +93,9 @@ def wrap_text_with_newlines(text, width):
     return lines
 
 
-def main():
+def main(file):
     # Load the Excel file
-    workbook = openpyxl.load_workbook('./data_bachelor_sample.xlsx')
+    workbook = openpyxl.load_workbook(file)
 
     sheet = workbook.active
 
@@ -381,7 +402,7 @@ def main():
         diploma.paste(img_qr, qr_pos)
 
         # Save the diploma as a new image file.
-        diploma.save(f'Diplomas/{name_file}.jpeg', 'JPEG')
+        diploma.save(f'./Diplomas/images/{name_file}.jpeg', 'JPEG')
 
         metadata = {
             "description": f"KBTU 2023 Graduate {name_file}",
@@ -433,7 +454,7 @@ def main():
         metadata_json = json.dumps(metadata)
         fullMetadata += metadata_json + ("," if i < len(names_kaz) - 1 else "")
         # Create a new file with the JSON data
-        filename = f"./json/{counter}.json"
+        filename = f"./Diplomas/json/{counter}.json"
         counter += 1
         with open(filename, "w", encoding="utf-8") as f:
             f.write(metadata_json)
