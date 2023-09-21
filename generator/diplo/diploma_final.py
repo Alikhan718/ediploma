@@ -33,7 +33,7 @@ def get_image(image_name):
         return "Image not found", 404
 
 @app.route("/get-sample-xlsx/<image_name>")
-def get_image(image_name):
+def get_sample(image_name):
     # Specify the directory where your diploma images are stored
     image_directory = "./Diplomas"
 
