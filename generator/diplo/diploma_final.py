@@ -7,9 +7,10 @@ import qrcode
 import openpyxl
 import textwrap
 import re
-from flask import Flask, send_file, request, redirect
+from flask import Flask, send_file, request, redirect, jsonify
 import os
 import psycopg2
+from peewee import Model, PostgresqlDatabase, TextField
 
 
 def connectDatabase():
@@ -68,6 +69,53 @@ if __name__ == "__main__":
 @app.route("/")
 def home():
     return main()
+
+
+@app.route("/generator/update", methods=["POST"])
+def update_diploma():
+    if request.method == "POST":
+        connection, cursor = connectDatabase()
+
+        if connection is None or cursor is None:
+            return "Error connecting to the database."
+
+        try:
+            # Assuming request.data is a list of dictionaries
+            for data in request.json:
+                if "name_en" in data:
+                    name_en = data["name_en"]
+
+                    # Check if the record exists in the database
+                    cursor.execute("SELECT * FROM upload_diplomas WHERE value->>'name_en' = %s", (name_en))
+                    existing_record = cursor.fetchone()
+
+                    if existing_record:
+                        # If the record exists, update it
+                        cursor.execute(
+                            "UPDATE upload_diplomas SET value = %s WHERE value->>'name_en' = %s",
+                            (json.dumps(data), name_en)
+                        )
+                        connection.commit()
+                        print(f"Diploma for {name_en} updated successfully.")
+                    else:
+                        # If the record doesn't exist, insert a new one
+                        cursor.execute(
+                            "INSERT INTO upload_diplomas (value, university_id) VALUES (%s, %s)",
+                            (json.dumps(data), university_id)
+                        )
+                        connection.commit()
+                        print(f"Diploma for {name_en} inserted successfully.")
+                else:
+                    print("Missing 'name_en' in data:", data)
+        except psycopg2.Error as e:
+            print("Error updating data in the database:", e)
+        finally:
+            cursor.close()
+            connection.close()
+        return 'Updatted'
+    return 'None'
+
+
 
 
 @app.route("/get-image/<image_name>")
