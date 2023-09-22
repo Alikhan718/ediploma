@@ -41,7 +41,7 @@ def connectDatabase():
 
 
 app = Flask(__name__)
-@app.route('/upload', methods=['GET', "POST"])
+@app.route('/parse-data', methods=['GET', "POST"])
 def upload():
     if request.method == 'POST':
         # check if the post request has the file part
