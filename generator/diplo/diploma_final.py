@@ -9,14 +9,47 @@ import textwrap
 import re
 from flask import Flask, send_file, request, redirect
 import os
+import psycopg2
+
+
+def connectDatabase():
+    # Database connection parameters
+    host = "109.248.170.239"
+    port = 5432
+    database = "postgres"
+    user = "postgres"
+    password = "7Vow1e2v0v7x"
+    # Establish a connection to the database
+    try:
+        connection = psycopg2.connect(
+            host=host,
+            port=port,
+            database=database,
+            user=user,
+            password=password
+        )
+        print('connected')
+        # Create a cursor object
+        cursor = connection.cursor()
+        return connection, cursor
+
+    except psycopg2.Error as e:
+        print("Error connecting to the database:", e)
+        return None, None
+
+
 
 app = Flask(__name__)
 @app.route('/upload', methods=['GET', "POST"])
 def upload():
     if request.method == 'POST':
         # check if the post request has the file part
+        print(request.values)
         if 'file' not in request.files:
             print('No file part')
+            return redirect(request.url)
+        if 'university_id' not in request.values:
+            print ('No university ID')
             return redirect(request.url)
         file = request.files['file']
         print(os.path)
@@ -25,8 +58,7 @@ def upload():
         if file.filename == '':
             print('No selected file')
             return redirect(request.url)
-        print('file')
-        return main(file)
+        return main(file, request.form.get('university_id'))
     return 'here'
 
 
@@ -92,9 +124,33 @@ def wrap_text_with_newlines(text, width):
         lines.extend(textwrap.wrap(part, width=width))
     return lines
 
+def createTableIfNotExists(cursor):
+    try:
+        # Define the SQL statement to create the table if it doesn't exist
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS upload_diplomas (
+            id SERIAL PRIMARY KEY,
+            value JSONB,
+            university_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TIMESTAMP
+        )
+        """
+        # Execute the SQL statement
+        cursor.execute(create_table_query)
+    except psycopg2.Error as e:
+        print("Error creating the table:", e)
 
-def main(file):
+
+def main(file, id):
     # Load the Excel file
+    connection, cursor = connectDatabase()
+    if connection is None or cursor is None:
+        return "Error connecting to the database."
+    else:
+        createTableIfNotExists(cursor)    
+
     workbook = openpyxl.load_workbook(file)
 
     sheet = workbook.active
@@ -459,6 +515,15 @@ def main(file):
         with open(filename, "w", encoding="utf-8") as f:
             f.write(metadata_json)
         # break
+                # Insert metadata into the database
+        try:
+            cursor.execute(
+                "INSERT INTO upload_diplomas (value, university_id) VALUES (%s, %s)",
+                (metadata_json, id)
+            )
+            connection.commit()
+        except psycopg2.Error as e:
+            print("Error inserting data into the database:", e)
 
     fullMetadata += "]"
     with open("fullMetadata.json", "w") as f:
