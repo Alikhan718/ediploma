@@ -468,7 +468,7 @@ def parseData(file, id):
         metadata_json = json.dumps(metadata)
         fullMetadata += metadata_json + ("," if i < len(names_kaz) - 1 else "")
         # Create a new file with the JSON data
-        filename = f"./json/{counter}.json"
+        filename = f"./Diplomas/json/{counter}.json"
         counter += 1
         with open(filename, "w", encoding="utf-8") as f:
             f.write(metadata_json)
@@ -559,6 +559,7 @@ def update_diploma():
                             )
                             connection.commit()
                             print(f"Diploma for {name_en} updated successfully.")
+                            regenerate_diploma(name_en, counter)
                     else:
                         # If the record doesn't exist, insert a new one
                         cursor.execute(
@@ -577,6 +578,61 @@ def update_diploma():
         return 'Updated'
     return None
 
+def regenerate_diploma(name_en, counter):
+    connection, cursor = connectDatabase()
+
+    if connection is None or cursor is None:
+        return {"error": "Error connecting to the database."}
+
+    try:
+        shorthash = generate_short_hash(name_en + str(counter))
+        # Check if the record exists in the database
+        cursor.execute("SELECT value FROM upload_diplomas WHERE hash_id = %s", (shorthash,))
+        existing_data = cursor.fetchone()
+
+        if existing_data:
+            existing_data = json.loads(existing_data[0])
+            # You can modify the existing data here if needed
+            # For example, if you want to update the name in the diploma:
+            existing_data["attributes"][2]["value"] = name_en
+
+            # Re-generate the diploma using the updated data
+            regenerated_diploma_response = parseData(None, None, existing_data)
+
+            if "image" in regenerated_diploma_response:
+                regenerated_image_path = regenerated_diploma_response["image"]
+                # Save the regenerated diploma as a new image file
+                regenerated_image = Image.open(regenerated_image_path)
+
+                regenerated_filename = f"./Diplomas/{name_en.replace(' ', '_')}_{counter}_regenerated.jpeg"
+                regenerated_image.save(regenerated_filename, 'JPEG')
+
+                # Update the database with the regenerated data
+                cursor.execute(
+                    "UPDATE upload_diplomas SET value = %s WHERE hash_id = %s",
+                    (json.dumps(existing_data), shorthash)
+                )
+                connection.commit()
+
+                print(f"Diploma for {name_en} regenerated and updated successfully.")
+                return {
+                    "message": f"Diploma for {name_en} regenerated and updated successfully.",
+                    "regenerated_image_path": regenerated_filename
+                }
+            else:
+                print("No image found in the regenerated diploma response.")
+                return {"error": "No image found in the regenerated diploma response."}
+        else:
+            print(f"Diploma for {name_en} with counter {counter} not found in the database.")
+            return {"error": f"Diploma for {name_en} with counter {counter} not found in the database."}
+
+    except psycopg2.Error as e:
+        print("Error regenerating data in the database:", e)
+        return {"error": "Error regenerating data in the database."}
+    
+    finally:
+        cursor.close()
+        connection.close()
 
 @app.route("/get-image/<image_name>")
 def get_image(image_name):
