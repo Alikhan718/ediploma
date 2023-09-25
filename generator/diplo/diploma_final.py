@@ -1,16 +1,32 @@
 # run command # nohup python3 -m flask --app diploma_final.py run &
+
 import os
+import re
+import textwrap
 
 import json
-from PIL import Image, ImageDraw, ImageFont
-import qrcode
 import openpyxl
-import textwrap
-import re
-from flask import Flask, send_file, request, redirect, jsonify
-import os
 import psycopg2
-from peewee import Model, PostgresqlDatabase, TextField
+import qrcode
+import hashlib
+from PIL import Image, ImageDraw, ImageFont
+from flask import Flask, send_file, request, redirect
+import warnings
+
+# Suppress DeprecationWarning for ANTIALIAS in Pillow
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+
+def generate_short_hash(text):
+    # Create a SHA-256 hash object
+    sha256 = hashlib.sha256()
+
+    # Update the hash object with the input text
+    sha256.update(text.encode('utf-8'))
+
+    # Get the hexadecimal digest of the hash and take the first 12 characters
+    short_hash = sha256.hexdigest()[:12]
+    return short_hash
 
 
 def connectDatabase():
@@ -39,114 +55,7 @@ def connectDatabase():
         return None, None
 
 
-
 app = Flask(__name__)
-@app.route('/parse-data', methods=['GET', "POST"])
-def upload():
-    if request.method == 'POST':
-        # check if the post request has the file part
-        print(request.values)
-        if 'file' not in request.files:
-            print('No file part')
-            return redirect(request.url)
-        if 'university_id' not in request.values:
-            print ('No university ID')
-            return redirect(request.url)
-        file = request.files['file']
-        print(os.path)
-        # If the user does not select a file, the browser submits an
-        # empty file without a filename.
-        if file.filename == '':
-            print('No selected file')
-            return redirect(request.url)
-        return main(file, request.form.get('university_id'))
-    return 'here'
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
-
-@app.route("/")
-def home():
-    return main()
-
-
-@app.route("/generator/update", methods=["POST"])
-def update_diploma():
-    if request.method == "POST":
-        connection, cursor = connectDatabase()
-
-        if connection is None or cursor is None:
-            return "Error connecting to the database."
-
-        try:
-            # Assuming request.data is a list of dictionaries
-            for data in request.json:
-                if "name_en" in data:
-                    name_en = data["name_en"]
-
-                    # Check if the record exists in the database
-                    cursor.execute("SELECT * FROM upload_diplomas WHERE value->>'name_en' = %s", (name_en))
-                    existing_record = cursor.fetchone()
-
-                    if existing_record:
-                        # If the record exists, update it
-                        cursor.execute(
-                            "UPDATE upload_diplomas SET value = %s WHERE value->>'name_en' = %s",
-                            (json.dumps(data), name_en)
-                        )
-                        connection.commit()
-                        print(f"Diploma for {name_en} updated successfully.")
-                    else:
-                        # If the record doesn't exist, insert a new one
-                        cursor.execute(
-                            "INSERT INTO upload_diplomas (value, university_id) VALUES (%s, %s)",
-                            (json.dumps(data), university_id)
-                        )
-                        connection.commit()
-                        print(f"Diploma for {name_en} inserted successfully.")
-                else:
-                    print("Missing 'name_en' in data:", data)
-        except psycopg2.Error as e:
-            print("Error updating data in the database:", e)
-        finally:
-            cursor.close()
-            connection.close()
-        return 'Updatted'
-    return 'None'
-
-
-
-
-@app.route("/get-image/<image_name>")
-def get_image(image_name):
-    # Specify the directory where your diploma images are stored
-    image_directory = "./Diplomas"
-
-    # Create the full path to the requested image
-    image_path = os.path.join(image_directory, f"{image_name}")
-    # Check if the image file exists
-    if os.path.isfile(image_path):
-        # Return the image file
-        return send_file(image_path, mimetype="image/jpeg")
-    else:
-        # Return an error message or a default image if the requested image doesn't exist
-        return "Image not found", 404
-
-@app.route("/get-sample-xlsx/<image_name>")
-def get_image_1(image_name):
-    # Specify the directory where your diploma images are stored
-    image_directory = "./Diplomas"
-
-    # Create the full path to the requested image
-    image_path = os.path.join(image_directory, f"{image_name}")
-    # Check if the image file exists
-    if os.path.isfile(image_path):
-        # Return the image file
-        return send_file(image_path, mimetype="image/jpeg")
-    else:
-        # Return an error message or a default image if the requested image doesn't exist
-        return "Image not found", 404
 
 
 # Remove invalid characters
@@ -172,12 +81,14 @@ def wrap_text_with_newlines(text, width):
         lines.extend(textwrap.wrap(part, width=width))
     return lines
 
+
 def createTableIfNotExists(cursor):
     try:
         # Define the SQL statement to create the table if it doesn't exist
         create_table_query = """
         CREATE TABLE IF NOT EXISTS upload_diplomas (
             id SERIAL PRIMARY KEY,
+            hash_id varchar(12),
             value JSONB,
             university_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -191,13 +102,13 @@ def createTableIfNotExists(cursor):
         print("Error creating the table:", e)
 
 
-def main(file, id):
+def parseData(file, id):
     # Load the Excel file
     connection, cursor = connectDatabase()
     if connection is None or cursor is None:
-        return "Error connecting to the database."
+        return {"error": "Error connecting to the database."}
     else:
-        createTableIfNotExists(cursor)    
+        createTableIfNotExists(cursor)
 
     workbook = openpyxl.load_workbook(file)
 
@@ -506,8 +417,7 @@ def main(file, id):
         diploma.paste(img_qr, qr_pos)
 
         # Save the diploma as a new image file.
-        diploma.save(f'./Diplomas/images/{name_file}.jpeg', 'JPEG')
-
+        diploma.save(f'./Diplomas/{name_file}.jpeg', 'JPEG')
         metadata = {
             "description": f"KBTU 2023 Graduate {name_file}",
             "image": f"http://generator.ediploma.kz/get-image/{name_file}.jpeg",
@@ -558,17 +468,29 @@ def main(file, id):
         metadata_json = json.dumps(metadata)
         fullMetadata += metadata_json + ("," if i < len(names_kaz) - 1 else "")
         # Create a new file with the JSON data
-        filename = f"./Diplomas/json/{counter}.json"
+        filename = f"./json/{counter}.json"
         counter += 1
         with open(filename, "w", encoding="utf-8") as f:
             f.write(metadata_json)
         # break
-                # Insert metadata into the database
+        # Insert metadata into the database
         try:
-            cursor.execute(
-                "INSERT INTO upload_diplomas (value, university_id) VALUES (%s, %s)",
-                (metadata_json, id)
-            )
+            shorthash = generate_short_hash(name_en + str(counter - 1))
+            # Check if the record exists in the database
+            cursor.execute("SELECT id FROM upload_diplomas WHERE hash_id = %s AND deleted_at IS NULL", (shorthash,))
+            existing_record = cursor.fetchone()
+
+            if existing_record:
+                # If the record exists, update it
+                cursor.execute(
+                    "UPDATE upload_diplomas SET value = %s, university_id = %s WHERE hash_id = %s AND deleted_at IS NULL",
+                    (metadata_json, id, shorthash)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO upload_diplomas (value, university_id, hash_id) VALUES (%s, %s, %s)",
+                    (metadata_json, id, shorthash)
+                )
             connection.commit()
         except psycopg2.Error as e:
             print("Error inserting data into the database:", e)
@@ -581,3 +503,105 @@ def main(file, id):
     if os.path.isfile(image_path):
         # Return the image file
         return send_file(image_path)
+
+
+@app.route('/data/parse', methods=['GET', "POST"])
+def upload():
+    if request.method == 'POST':
+        # check if the post request has the file part
+        if 'file' not in request.files:
+            return {'error': 'File required'}
+        if 'university_id' not in request.values:
+            return {'error': 'No university ID'}
+        file = request.files['file']
+        # If the user does not select a file, the browser submits an
+        # empty file without a filename.
+        if file.filename == '':
+            return {'error': 'No selected file'}
+        return parseData(file, request.form.get('university_id'))
+    return 'here'
+
+
+# @app.route("/")
+# def home():
+#     return main()
+
+
+@app.route("/data/update", methods=["POST"])
+def update_diploma():
+    if request.method == "POST":
+        connection, cursor = connectDatabase()
+
+        if connection is None or cursor is None:
+            return {"error": "Error connecting to the database."}
+
+        try:
+            # Assuming request.data is a list of dictionaries
+            for data in request.json:
+                if "name" in data:
+                    name_en = data["name"]
+                    counter = data["counter"]
+                    shorthash = generate_short_hash(name_en + str(counter))
+                    # Check if the record exists in the database
+                    cursor.execute("SELECT * FROM upload_diplomas WHERE hash_id = %s", (shorthash,))
+                    existing_record = cursor.fetchone()
+
+                    if existing_record:
+                        # If the record exists, update it
+                        existing_data = existing_record[2]  # Assuming 'value' is the second column
+
+                        if existing_data == data:
+                            print(f"Diploma for {name_en} is the same; no update needed.")
+                        else:
+                            cursor.execute(
+                                "UPDATE upload_diplomas SET value = %s WHERE hash_id = %s",
+                                (json.dumps(data), shorthash)
+                            )
+                            connection.commit()
+                            print(f"Diploma for {name_en} updated successfully.")
+                    else:
+                        # If the record doesn't exist, insert a new one
+                        cursor.execute(
+                            "INSERT INTO upload_diplomas (value, university_id, hash_id) VALUES (%s, %s, %s)",
+                            (json.dumps(data), None, shorthash)
+                        )
+                        connection.commit()
+                        print(f"Diploma for {name_en} inserted successfully.")
+                else:
+                    print("Missing 'name_en' in data:", data)
+        except psycopg2.Error as e:
+            print("Error updating data in the database:", e)
+        finally:
+            cursor.close()
+            connection.close()
+        return 'Updated'
+    return None
+
+
+@app.route("/get-image/<image_name>")
+def get_image(image_name):
+    # Specify the directory where your diploma images are stored
+    image_directory = "./Diplomas"
+
+    # Create the full path to the requested image
+    image_path = os.path.join(image_directory, f"{image_name}")
+    # Check if the image file exists
+    if os.path.isfile(image_path):
+        # Return the image file
+        return send_file(image_path, mimetype="image/jpeg")
+    else:
+        # Return an error message or a default image if the requested image doesn't exist
+        return "Image not found", 404
+
+
+@app.route("/get-sample", methods=["GET"])
+def get_sample_file():
+    file_path = "data_bachelor_sample.xlsx"
+    if os.path.isfile(file_path):
+        return send_file(file_path, as_attachment=True)
+    else:
+        return "File not found", 404
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
