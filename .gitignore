@@ -7,7 +7,7 @@ Lib
 Scripts
 pyvenv.cfg
 generator/diplo/json
-generator/diplo/Diplomas
+generator/diplo/storage
 *.jpeg
 
 generator/diplo/__pycache__

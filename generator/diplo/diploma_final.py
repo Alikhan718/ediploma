@@ -1,24 +1,47 @@
 # run command # nohup python3 -m flask --app diploma_final.py run &
 
+import hashlib
 import os
 import re
 import textwrap
+import warnings
+import zipfile
 
 import json
 import openpyxl
 import psycopg2
 import qrcode
-import hashlib
+import requests
 from PIL import Image, ImageDraw, ImageFont
-from flask import Flask, send_file, request, redirect
-import warnings
+from flask import Flask, send_file, request
+from flask_cors import CORS
+
+
+def zip_folder(folder_path, zip_path):
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, folder_path)
+                zipf.write(file_path, arcname=arcname)
+
 
 # Suppress DeprecationWarning for ANTIALIAS in Pillow
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+# Load template
+template = Image.open('./diploma_template.png')
+
+# Set the fonts/ #Need to download them and make a way to them
+font1 = ImageFont.truetype('./miamanueva.ttf', size=30)
+font2 = ImageFont.truetype('./Alice-Regular.ttf', size=23)
+font3 = ImageFont.truetype('./Alice-Regular.ttf', size=15)
+font4 = ImageFont.truetype('./Alice-Regular.ttf', size=22)
+font5 = ImageFont.truetype('./Alice-Regular.ttf', size=22)  ##2a4a62
+
 
 def generate_short_hash(text):
-    # Create a SHA-256 hash object
+    # Create an SHA-256 hash object
     sha256 = hashlib.sha256()
 
     # Update the hash object with the input text
@@ -102,7 +125,336 @@ def createTableIfNotExists(cursor):
         print("Error creating the table:", e)
 
 
-def parseData(file, id):
+def createFolderIfNotExists(folder_path):
+    if not os.path.exists(folder_path):
+        try:
+            # Create the folder if it doesn't exist
+            os.makedirs(folder_path)
+            print(f"Folder '{folder_path}' created successfully.")
+        except Exception as e:
+            print(f"An error occurred while creating folder '{folder_path}': {e}")
+    else:
+        print(f"Folder '{folder_path}' already exists.")
+
+
+def generateDiplomaImage(graduate, counter, university_id):
+    number = graduate["number"]
+    name_kz = graduate["name_kz"]
+    name_ru = graduate["name_ru"]
+    name_en = graduate["name_en"]
+    protocol_kz = graduate["protocol_kz"]
+    protocol_ru = graduate["protocol_ru"]
+    protocol_en = graduate["protocol_en"]
+    degree_kz = graduate["degree_kz"]
+    degree_ru = graduate["degree_ru"]
+    degree_en = graduate["degree_en"]
+    qualification_kz = graduate["qualification_kz"]
+    qualification_ru = graduate["qualification_ru"]
+    qualification_en = graduate["qualification_en"]
+    distinction_kz = graduate["distinction_kz"]
+    distinction_ru = graduate["distinction_ru"]
+    distinction_en = graduate["distinction_en"]
+
+    # Create a copy of the diploma template.
+    diploma = template.copy().convert('RGB')
+    # Create a draw object for the diploma.
+    draw = ImageDraw.Draw(diploma)
+    # Make for file name
+    name_file = f"{name_en.replace(' ', '_')}_{number}"
+    # Sanitize the filename
+    name_file = sanitize_filename(name_file)
+
+    # Calculate the dimensions of each part
+    canvas_width, canvas_height = diploma.size
+    part_width = canvas_width // 3
+    part_height = canvas_height
+
+    # Calculate the center coordinates for each part
+    part1_x = part_width // 2
+    part1_y = canvas_height // 2.9
+
+    part2_x = part_width + (part_width // 2)
+    part2_y = canvas_height // 2.9
+
+    part3_x = (part_width * 2) + (part_width // 2)
+    part3_y = canvas_height // 2.9
+
+    # Define line spacing
+    line_spacing = 3
+
+    # Wrap the text if it exceeds the line width
+    name_kz_lines = textwrap.wrap(name_kz, width=25)
+    name_ru_lines = textwrap.wrap(name_ru, width=25)
+    name_en_lines = textwrap.wrap(name_en, width=25)
+
+    # Draw the names in the middle of each part
+    name_width_kz, name_height_kz = draw.textsize('\n'.join(name_kz_lines), font=font1)
+    name_x_kz = part1_x - name_width_kz // 2
+    name_y_kz = part1_y - (name_height_kz * len(name_kz_lines) + line_spacing * (len(name_kz_lines) - 1)) // 2
+
+    for line in name_kz_lines:
+        text_width, text_height = draw.textsize(line, font=font1)
+        text_x = name_x_kz + (name_width_kz - text_width) // 2  # Center-align the text
+        draw.text((text_x, name_y_kz), line, fill='#FFD700', font=font1)
+        name_y_kz += name_height_kz + line_spacing
+
+    name_width_ru, name_height_ru = draw.textsize('\n'.join(name_ru_lines), font=font1)
+    name_x_ru = part2_x - name_width_ru // 2
+    name_y_ru = part2_y - (name_height_ru * len(name_ru_lines) + line_spacing * (len(name_ru_lines) - 1)) // 2
+    for line in name_ru_lines:
+        text_width, text_height = draw.textsize(line, font=font1)
+        text_x = name_x_ru + (name_width_ru - text_width) // 2  # Center-align the text
+        draw.text((text_x, name_y_ru), line, fill='#FFD700', font=font1)
+        name_y_ru += name_height_ru + line_spacing
+
+    name_width_en, name_height_en = draw.textsize('\n'.join(name_en_lines), font=font1)
+    name_x_en = part3_x - name_width_en // 2
+    name_y_en = part3_y - (name_height_en * len(name_en_lines) + line_spacing * (len(name_en_lines) - 1)) // 2
+    for line in name_en_lines:
+        text_width, text_height = draw.textsize(line, font=font1)
+        text_x = name_x_en + (name_width_en - text_width) // 2  # Center-align the text
+        draw.text((text_x, name_y_en), line, fill='#FFD700', font=font1)
+        name_y_en += name_height_en + line_spacing
+
+    # Add with distinction (only if not empty)
+    if distinction_ru is not None and distinction_ru.strip() != "":
+        # Calculate the center coordinates for each part
+        part1_y = canvas_height * 8.5 // 14
+        part2_y = canvas_height * 8.5 // 14
+        part3_y = canvas_height * 8.5 // 14
+
+        # Wrap the text if it exceeds the line width
+        distinction_kz_lines = textwrap.wrap(distinction_kz, width=20)
+        distinction_ru_lines = textwrap.wrap(distinction_ru, width=20)
+        distinction_en_lines = textwrap.wrap(distinction_en, width=20)
+
+        # Draw the distinction text in the middle of each part
+        draw_distinction_text(draw, font2, part1_x, part1_y, distinction_kz_lines, '#5c92c7')
+        draw_distinction_text(draw, font2, part2_x, part2_y, distinction_ru_lines, '#5c92c7')
+        draw_distinction_text(draw, font2, part3_x, part3_y, distinction_en_lines, '#5c92c7')
+
+    # Qualifications
+    # Calculate the center coordinates for each part
+    part1_y = canvas_height // 2.5
+    part2_y = canvas_height // 2.5
+    part3_y = canvas_height // 2.5
+
+    degree_color = "#2a4a62"
+    qualification_color = "#5c92c7"
+
+    # Combine the degree and qualification text
+    qualification_kz = qualification_kz + "\n" + degree_kz
+    qualification_ru = degree_ru + "\n" + qualification_ru
+    qualification_en = degree_en + "\n" + qualification_en
+    # Wrap the text if it exceeds the line width
+    qualification_kz_lines = wrap_text_with_newlines(qualification_kz, width=35)
+    qualification_ru_lines = wrap_text_with_newlines(qualification_ru, width=35)
+    qualification_en_lines = wrap_text_with_newlines(qualification_en, width=35)
+
+    # Draw the text for the Kazakh language
+    y = part1_y
+    for line in qualification_kz_lines:
+        if line.strip() == degree_kz.strip():
+            color = degree_color
+        else:
+            color = qualification_color
+        text_width, text_height = draw.textsize(line, font=font2)
+        text_x = part1_x - text_width // 2
+        draw.text((text_x, y), line, fill=color, font=font2)
+        y += text_height
+
+    # Draw the text for the Russian language
+    y = part2_y
+    for line in qualification_ru_lines:
+        if line.strip() == degree_ru.strip():
+            color = degree_color
+        else:
+            color = qualification_color
+        text_width, text_height = draw.textsize(line, font=font2)
+        text_x = part2_x - text_width // 2
+        draw.text((text_x, y), line, fill=color, font=font2)
+        y += text_height
+
+    # Draw the text for the English language
+    y = part3_y
+    for line in qualification_en_lines:
+        if line.strip() == degree_en.strip():
+            color = degree_color
+        else:
+            color = qualification_color
+        text_width, text_height = draw.textsize(line, font=font2)
+        text_x = part3_x - text_width // 2
+        draw.text((text_x, y), line, fill=color, font=font2)
+        y += text_height
+    # Protocols
+    # Calculate the center coordinates for each part
+    part1_y = canvas_height // 4.2
+    part2_y = canvas_height // 4.2
+    part3_y = canvas_height // 4.2
+
+    # Wrap the text if it exceeds the line width
+    protocol_kz_lines = textwrap.wrap(protocol_kz, width=45)
+    protocol_ru_lines = textwrap.wrap(protocol_ru, width=35)
+    protocol_en_lines = textwrap.wrap(protocol_en, width=35)
+
+    # Draw the names in the middle of each part
+    protocol_width_kz, protocol_height_kz = draw.textsize('\n'.join(protocol_kz_lines), font=font4)
+    protocol_x_kz = part1_x - protocol_width_kz // 2
+    protocol_y_kz = part1_y - protocol_height_kz // 2
+    for line in protocol_kz_lines:
+        text_width, text_height = draw.textsize(line, font=font4)
+        text_x = protocol_x_kz + (protocol_width_kz - text_width) // 2  # Center-align the text
+        draw.text((text_x, protocol_y_kz), line, fill='#5c92c7', font=font4)
+        protocol_y_kz += protocol_height_kz + 2  # Add a small fixed spacing between lines
+
+    protocol_width_ru, protocol_height_ru = draw.textsize('\n'.join(protocol_ru_lines), font=font4)
+    protocol_x_ru = part2_x - protocol_width_ru // 2
+    protocol_y_ru = part2_y - protocol_height_ru // 2
+    for line in protocol_ru_lines:
+        text_width, text_height = draw.textsize(line, font=font4)
+        text_x = protocol_x_ru + (protocol_width_ru - text_width) // 2  # Center-align the text
+        draw.text((text_x, protocol_y_ru), line, fill='#5c92c7', font=font4)
+        protocol_y_ru += protocol_height_ru + 2  # Add a small fixed spacing between lines
+
+    protocol_width_en, protocol_height_en = draw.textsize('\n'.join(protocol_en_lines), font=font4)
+    protocol_x_en = part3_x - protocol_width_en // 2
+    protocol_y_en = part3_y - protocol_height_en // 2
+    for line in protocol_en_lines:
+        text_width, text_height = draw.textsize(line, font=font4)
+        text_x = protocol_x_en + (protocol_width_en - text_width) // 2  # Center-align the text
+        draw.text((text_x, protocol_y_en), line, fill='#5c92c7', font=font4)
+        protocol_y_en += protocol_height_en + 2  # Add a small fixed spacing between lines
+        # Study type
+    # Calculate the center coordinates for each part
+    part1_y = canvas_height * 2 // 3
+    part2_y = canvas_height * 2 // 3
+    part3_y = canvas_height * 2 // 3
+
+    # Wrap the text if it exceeds the line width
+    study_kz_lines = textwrap.wrap("ОҚЫТУ НЫСАНЫ КҮНДІЗГІ", width=100)
+    study_ru_lines = textwrap.wrap("ФОРМА ОБУЧЕНИЯ ОЧНАЯ", width=100)
+    study_en_lines = textwrap.wrap("FORM OF TRAINING FULL-TIME", width=100)
+
+    # Draw the names in the middle of each part
+    study_width_kz, study_height_kz = draw.textsize('\n'.join(study_kz_lines), font=font3)
+    study_x_kz = part1_x - study_width_kz // 2
+    study_y_kz = part1_y - (study_height_kz * len(study_kz_lines)) // 2
+    for line in study_kz_lines:
+        text_width, text_height = draw.textsize(line, font=font3)
+        text_x = study_x_kz + (study_width_kz - text_width) // 2  # Center-align the text
+        draw.text((text_x, study_y_kz), line, fill='#5c92c7', font=font3)
+        study_y_kz += text_height
+
+    study_width_ru, study_height_ru = draw.textsize('\n'.join(study_ru_lines), font=font3)
+    study_x_ru = part2_x - study_width_ru // 2
+    study_y_ru = part2_y - (study_height_ru * len(study_ru_lines)) // 2
+    for line in study_ru_lines:
+        text_width, text_height = draw.textsize(line, font=font3)
+        text_x = study_x_ru + (study_width_ru - text_width) // 2  # Center-align the text
+        draw.text((text_x, study_y_ru), line, fill='#5c92c7', font=font3)
+        study_y_ru += text_height
+
+    study_width_en, study_height_en = draw.textsize('\n'.join(study_en_lines), font=font3)
+    study_x_en = part3_x - study_width_en // 2
+    study_y_en = part3_y - (study_height_en * len(study_en_lines)) // 2
+    for line in study_en_lines:
+        text_width, text_height = draw.textsize(line, font=font3)
+        text_x = study_x_en + (study_width_en - text_width) // 2  # Center-align the text
+        draw.text((text_x, study_y_en), line, fill='#5c92c7', font=font3)
+        study_y_en += text_height
+
+    # Add QR code
+    qr_size = int(diploma.width * (1.6 / 23))
+
+    qr = qrcode.QRCode(box_size=1)
+    qr.add_data(f'https://ediploma.kz/')  # do after we do portal
+    qr.make(fit=True)
+
+    img_qr = qr.make_image(fill_color="black", back_color="white").resize((qr_size, qr_size), Image.ANTIALIAS)
+    margin = int(diploma.width * (0.5 / 23))
+    qr_pos = (diploma.width - qr_size - margin, diploma.height - qr_size - margin)
+
+    diploma.paste(img_qr, qr_pos)
+    folder_path = f"./storage/images/{university_id}"
+    createFolderIfNotExists(folder_path)
+    # Save the diploma as a new image file.
+    diploma.save(f'./storage/images/{university_id}/{name_file}.jpeg', 'JPEG')
+    metadata = {
+        "description": f"KBTU 2023 Graduate {name_file}",
+        "image": f"http://localhost:5000/get-file/{name_file}.jpeg",
+        "name": name_en,
+        "counter": counter,
+        "attributes": [
+            {
+                "name": "number",
+                "value": number
+            },
+            {
+                "name": "name_kz",
+                "value": name_kz
+            },
+            {
+                "name": "name_ru",
+                "value": name_ru
+            },
+            {
+                "name": "name_en",
+                "value": name_en
+            },
+            {
+                "name": "protocol_kz",
+                "value": protocol_kz
+            },
+            {
+                "name": "protocol_ru",
+                "value": protocol_ru
+            },
+            {
+                "name": "protocol_en",
+                "value": protocol_en
+            },
+            {
+                "name": "degree_kz",
+                "value": degree_kz
+            },
+            {
+                "name": "degree_ru",
+                "value": degree_ru
+            },
+            {
+                "name": "degree_en",
+                "value": degree_en
+            },
+            {
+                "name": "qualification_kz",
+                "value": qualification_kz
+            },
+            {
+                "name": "qualification_ru",
+                "value": qualification_ru
+            },
+            {
+                "name": "qualification_en",
+                "value": qualification_en
+            },
+            {
+                "name": "distinction_kz",
+                "value": distinction_kz
+            },
+            {
+                "name": "distinction_ru",
+                "value": distinction_ru
+            },
+            {
+                "name": "distinction_en",
+                "value": distinction_en
+            }
+        ]
+    }
+    return metadata
+
+
+def parseData(file, university_id):
     # Load the Excel file
     connection, cursor = connectDatabase()
     if connection is None or cursor is None:
@@ -113,17 +465,6 @@ def parseData(file, id):
     workbook = openpyxl.load_workbook(file)
 
     sheet = workbook.active
-
-    # Load template
-    template = Image.open('./diploma_template.png')
-
-    # Set the fonts/ #Need to download them and make a way to them
-    font1 = ImageFont.truetype('./miamanueva.ttf', size=30)
-    font2 = ImageFont.truetype('./Alice-Regular.ttf', size=23)
-    font3 = ImageFont.truetype('./Alice-Regular.ttf', size=15)
-    font4 = ImageFont.truetype('./Alice-Regular.ttf', size=22)
-    font5 = ImageFont.truetype('./Alice-Regular.ttf', size=22)  ##2a4a62
-    imagesDiploma = {}
 
     # Initialize the variables
     # numbers
@@ -178,304 +519,39 @@ def parseData(file, id):
     # Gain all values separately
     counter = 1
     for i in range(len(names_kaz)):
-        number = str(numbers[i]).strip()
-        name_kz = str(names_kaz[i]).strip()
-        name_ru = str(names_rus[i]).strip()
-        name_en = str(names_eng[i]).strip()
-        protocol_kz = str(protocols_kaz[i]).strip().replace("№", "#")
-        protocol_ru = str(protocols_rus[i]).strip().replace("№", "#")
-        protocol_en = str(protocols_eng[i]).strip().replace("№", "#")
-        degree_kz = str(degrees_kaz[i]).upper().strip()
-        degree_ru = str(degrees_rus[i]).upper().strip()
-        degree_en = str(degrees_eng[i]).upper().strip()
-        qualification_kz = str(qualifications_kaz[i]).upper().strip()
-        qualification_ru = str(qualifications_rus[i]).upper().strip()
-        qualification_en = str(qualifications_eng[i]).upper().strip()
-        distinction_kz = str(with_distinctions_kaz[i]).upper().strip()
-        distinction_ru = str(with_distinctions_rus[i]).upper().strip()
-        distinction_en = str(with_distinctions_eng[i]).upper().strip()
-
-        # Create a copy of the diploma template.
-        diploma = template.copy().convert('RGB')
-        # Create a draw object for the diploma.
-        draw = ImageDraw.Draw(diploma)
-        # Make for file name
-        name_file = f"{name_en.replace(' ', '_')}_{number}"
-        # Sanitize the filename
-        name_file = sanitize_filename(name_file)
-
-        # Calculate the dimensions of each part
-        canvas_width, canvas_height = diploma.size
-        part_width = canvas_width // 3
-        part_height = canvas_height
-
-        # Calculate the center coordinates for each part
-        part1_x = part_width // 2
-        part1_y = canvas_height // 2.9
-
-        part2_x = part_width + (part_width // 2)
-        part2_y = canvas_height // 2.9
-
-        part3_x = (part_width * 2) + (part_width // 2)
-        part3_y = canvas_height // 2.9
-
-        # Define line spacing
-        line_spacing = 3
-
-        # Wrap the text if it exceeds the line width
-        name_kz_lines = textwrap.wrap(name_kz, width=25)
-        name_ru_lines = textwrap.wrap(name_ru, width=25)
-        name_en_lines = textwrap.wrap(name_en, width=25)
-
-        # Draw the names in the middle of each part
-        name_width_kz, name_height_kz = draw.textsize('\n'.join(name_kz_lines), font=font1)
-        name_x_kz = part1_x - name_width_kz // 2
-        name_y_kz = part1_y - (name_height_kz * len(name_kz_lines) + line_spacing * (len(name_kz_lines) - 1)) // 2
-
-        for line in name_kz_lines:
-            text_width, text_height = draw.textsize(line, font=font1)
-            text_x = name_x_kz + (name_width_kz - text_width) // 2  # Center-align the text
-            draw.text((text_x, name_y_kz), line, fill='#FFD700', font=font1)
-            name_y_kz += name_height_kz + line_spacing
-
-        name_width_ru, name_height_ru = draw.textsize('\n'.join(name_ru_lines), font=font1)
-        name_x_ru = part2_x - name_width_ru // 2
-        name_y_ru = part2_y - (name_height_ru * len(name_ru_lines) + line_spacing * (len(name_ru_lines) - 1)) // 2
-        for line in name_ru_lines:
-            text_width, text_height = draw.textsize(line, font=font1)
-            text_x = name_x_ru + (name_width_ru - text_width) // 2  # Center-align the text
-            draw.text((text_x, name_y_ru), line, fill='#FFD700', font=font1)
-            name_y_ru += name_height_ru + line_spacing
-
-        name_width_en, name_height_en = draw.textsize('\n'.join(name_en_lines), font=font1)
-        name_x_en = part3_x - name_width_en // 2
-        name_y_en = part3_y - (name_height_en * len(name_en_lines) + line_spacing * (len(name_en_lines) - 1)) // 2
-        for line in name_en_lines:
-            text_width, text_height = draw.textsize(line, font=font1)
-            text_x = name_x_en + (name_width_en - text_width) // 2  # Center-align the text
-            draw.text((text_x, name_y_en), line, fill='#FFD700', font=font1)
-            name_y_en += name_height_en + line_spacing
-
-        # Add with distinction (only if not empty)
-        if distinction_ru is not None and distinction_ru.strip() != "":
-            # Calculate the center coordinates for each part
-            part1_y = canvas_height * 8.5 // 14
-            part2_y = canvas_height * 8.5 // 14
-            part3_y = canvas_height * 8.5 // 14
-
-            # Wrap the text if it exceeds the line width
-            distinction_kz_lines = textwrap.wrap(distinction_kz, width=20)
-            distinction_ru_lines = textwrap.wrap(distinction_ru, width=20)
-            distinction_en_lines = textwrap.wrap(distinction_en, width=20)
-
-            # Draw the distinction text in the middle of each part
-            draw_distinction_text(draw, font2, part1_x, part1_y, distinction_kz_lines, '#5c92c7')
-            draw_distinction_text(draw, font2, part2_x, part2_y, distinction_ru_lines, '#5c92c7')
-            draw_distinction_text(draw, font2, part3_x, part3_y, distinction_en_lines, '#5c92c7')
-
-        # Qualifications
-        # Calculate the center coordinates for each part
-        part1_y = canvas_height // 2.5
-        part2_y = canvas_height // 2.5
-        part3_y = canvas_height // 2.5
-
-        degree_color = "#2a4a62"
-        qualification_color = "#5c92c7"
-
-        # Combine the degree and qualification text
-        qualification_kz = qualification_kz + "\n" + degree_kz
-        qualification_ru = degree_ru + "\n" + qualification_ru
-        qualification_en = degree_en + "\n" + qualification_en
-        # Wrap the text if it exceeds the line width
-        qualification_kz_lines = wrap_text_with_newlines(qualification_kz, width=35)
-        qualification_ru_lines = wrap_text_with_newlines(qualification_ru, width=35)
-        qualification_en_lines = wrap_text_with_newlines(qualification_en, width=35)
-
-        # Draw the text for the Kazakh language
-        y = part1_y
-        for line in qualification_kz_lines:
-            if line.strip() == degree_kz.strip():
-                color = degree_color
-            else:
-                color = qualification_color
-            text_width, text_height = draw.textsize(line, font=font2)
-            text_x = part1_x - text_width // 2
-            draw.text((text_x, y), line, fill=color, font=font2)
-            y += text_height
-
-        # Draw the text for the Russian language
-        y = part2_y
-        for line in qualification_ru_lines:
-            if line.strip() == degree_ru.strip():
-                color = degree_color
-            else:
-                color = qualification_color
-            text_width, text_height = draw.textsize(line, font=font2)
-            text_x = part2_x - text_width // 2
-            draw.text((text_x, y), line, fill=color, font=font2)
-            y += text_height
-
-        # Draw the text for the English language
-        y = part3_y
-        for line in qualification_en_lines:
-            if line.strip() == degree_en.strip():
-                color = degree_color
-            else:
-                color = qualification_color
-            text_width, text_height = draw.textsize(line, font=font2)
-            text_x = part3_x - text_width // 2
-            draw.text((text_x, y), line, fill=color, font=font2)
-            y += text_height
-        # Protocols
-        # Calculate the center coordinates for each part
-        part1_y = canvas_height // 4.2
-        part2_y = canvas_height // 4.2
-        part3_y = canvas_height // 4.2
-
-        # Wrap the text if it exceeds the line width
-        protocol_kz_lines = textwrap.wrap(protocol_kz, width=45)
-        protocol_ru_lines = textwrap.wrap(protocol_ru, width=35)
-        protocol_en_lines = textwrap.wrap(protocol_en, width=35)
-
-        # Draw the names in the middle of each part
-        protocol_width_kz, protocol_height_kz = draw.textsize('\n'.join(protocol_kz_lines), font=font4)
-        protocol_x_kz = part1_x - protocol_width_kz // 2
-        protocol_y_kz = part1_y - protocol_height_kz // 2
-        for line in protocol_kz_lines:
-            text_width, text_height = draw.textsize(line, font=font4)
-            text_x = protocol_x_kz + (protocol_width_kz - text_width) // 2  # Center-align the text
-            draw.text((text_x, protocol_y_kz), line, fill='#5c92c7', font=font4)
-            protocol_y_kz += protocol_height_kz + 2  # Add a small fixed spacing between lines
-
-        protocol_width_ru, protocol_height_ru = draw.textsize('\n'.join(protocol_ru_lines), font=font4)
-        protocol_x_ru = part2_x - protocol_width_ru // 2
-        protocol_y_ru = part2_y - protocol_height_ru // 2
-        for line in protocol_ru_lines:
-            text_width, text_height = draw.textsize(line, font=font4)
-            text_x = protocol_x_ru + (protocol_width_ru - text_width) // 2  # Center-align the text
-            draw.text((text_x, protocol_y_ru), line, fill='#5c92c7', font=font4)
-            protocol_y_ru += protocol_height_ru + 2  # Add a small fixed spacing between lines
-
-        protocol_width_en, protocol_height_en = draw.textsize('\n'.join(protocol_en_lines), font=font4)
-        protocol_x_en = part3_x - protocol_width_en // 2
-        protocol_y_en = part3_y - protocol_height_en // 2
-        for line in protocol_en_lines:
-            text_width, text_height = draw.textsize(line, font=font4)
-            text_x = protocol_x_en + (protocol_width_en - text_width) // 2  # Center-align the text
-            draw.text((text_x, protocol_y_en), line, fill='#5c92c7', font=font4)
-            protocol_y_en += protocol_height_en + 2  # Add a small fixed spacing between lines
-            # Study type
-        # Calculate the center coordinates for each part
-        part1_y = canvas_height * 2 // 3
-        part2_y = canvas_height * 2 // 3
-        part3_y = canvas_height * 2 // 3
-
-        # Wrap the text if it exceeds the line width
-        study_kz_lines = textwrap.wrap("ОҚЫТУ НЫСАНЫ КҮНДІЗГІ", width=100)
-        study_ru_lines = textwrap.wrap("ФОРМА ОБУЧЕНИЯ ОЧНАЯ", width=100)
-        study_en_lines = textwrap.wrap("FORM OF TRAINING FULL-TIME", width=100)
-
-        # Draw the names in the middle of each part
-        study_width_kz, study_height_kz = draw.textsize('\n'.join(study_kz_lines), font=font3)
-        study_x_kz = part1_x - study_width_kz // 2
-        study_y_kz = part1_y - (study_height_kz * len(study_kz_lines)) // 2
-        for line in study_kz_lines:
-            text_width, text_height = draw.textsize(line, font=font3)
-            text_x = study_x_kz + (study_width_kz - text_width) // 2  # Center-align the text
-            draw.text((text_x, study_y_kz), line, fill='#5c92c7', font=font3)
-            study_y_kz += text_height
-
-        study_width_ru, study_height_ru = draw.textsize('\n'.join(study_ru_lines), font=font3)
-        study_x_ru = part2_x - study_width_ru // 2
-        study_y_ru = part2_y - (study_height_ru * len(study_ru_lines)) // 2
-        for line in study_ru_lines:
-            text_width, text_height = draw.textsize(line, font=font3)
-            text_x = study_x_ru + (study_width_ru - text_width) // 2  # Center-align the text
-            draw.text((text_x, study_y_ru), line, fill='#5c92c7', font=font3)
-            study_y_ru += text_height
-
-        study_width_en, study_height_en = draw.textsize('\n'.join(study_en_lines), font=font3)
-        study_x_en = part3_x - study_width_en // 2
-        study_y_en = part3_y - (study_height_en * len(study_en_lines)) // 2
-        for line in study_en_lines:
-            text_width, text_height = draw.textsize(line, font=font3)
-            text_x = study_x_en + (study_width_en - text_width) // 2  # Center-align the text
-            draw.text((text_x, study_y_en), line, fill='#5c92c7', font=font3)
-            study_y_en += text_height
-
-        # Add QR code
-        qr_size = int(diploma.width * (1.6 / 23))
-
-        qr = qrcode.QRCode(box_size=1)
-        qr.add_data(f'https://ediploma.kz/')  # do after we do portal
-        qr.make(fit=True)
-
-        img_qr = qr.make_image(fill_color="black", back_color="white").resize((qr_size, qr_size), Image.ANTIALIAS)
-        margin = int(diploma.width * (0.5 / 23))
-        qr_pos = (diploma.width - qr_size - margin, diploma.height - qr_size - margin)
-
-        diploma.paste(img_qr, qr_pos)
-
-        # Save the diploma as a new image file.
-        diploma.save(f'./Diplomas/{name_file}.jpeg', 'JPEG')
-        metadata = {
-            "description": f"KBTU 2023 Graduate {name_file}",
-            "image": f"http://generator.ediploma.kz/get-image/{name_file}.jpeg",
-            "name": name_en,
-            "counter": counter,
-            "attributes": [
-                {
-                    "name": "name_kz",
-                    "value": name_kz
-                },
-                {
-                    "name": "name_ru",
-                    "value": name_ru
-                },
-                {
-                    "name": "name_en",
-                    "value": name_en
-                },
-                {
-                    "name": "protocol_en",
-                    "value": protocol_en
-                },
-                {
-                    "name": "degree_ru",
-                    "value": degree_ru
-                },
-                {
-                    "name": "degree_en",
-                    "value": degree_en
-                },
-                {
-                    "name": "qualification_kz",
-                    "value": qualification_kz
-                },
-                {
-                    "name": "qualification_ru",
-                    "value": qualification_ru
-                },
-                {
-                    "name": "qualification_en",
-                    "value": qualification_en
-                }
-            ]
+        graduate = {
+            "number": str(numbers[i]).strip(),
+            "name_kz": str(names_kaz[i]).strip(),
+            "name_ru": str(names_rus[i]).strip(),
+            "name_en": str(names_eng[i]).strip(),
+            "protocol_kz": str(protocols_kaz[i]).strip().replace("№", "#"),
+            "protocol_ru": str(protocols_rus[i]).strip().replace("№", "#"),
+            "protocol_en": str(protocols_eng[i]).strip().replace("№", "#"),
+            "degree_kz": str(degrees_kaz[i]).upper().strip(),
+            "degree_ru": str(degrees_rus[i]).upper().strip(),
+            "degree_en": str(degrees_eng[i]).upper().strip(),
+            "qualification_kz": str(qualifications_kaz[i]).upper().strip(),
+            "qualification_ru": str(qualifications_rus[i]).upper().strip(),
+            "qualification_en": str(qualifications_eng[i]).upper().strip(),
+            "distinction_kz": str(with_distinctions_kaz[i]).upper().strip(),
+            "distinction_ru": str(with_distinctions_rus[i]).upper().strip(),
+            "distinction_en": str(with_distinctions_eng[i]).upper().strip()
         }
-        imagesDiploma[name_en] = f"http://generator.ediploma.kz/get-image/{name_file}.jpeg"
-
+        metadata = generateDiplomaImage(graduate=graduate, counter=counter, university_id=university_id)
         # Convert the dictionary into a JSON string
         metadata_json = json.dumps(metadata)
         fullMetadata += metadata_json + ("," if i < len(names_kaz) - 1 else "")
         # Create a new file with the JSON data
-        filename = f"./Diplomas/json/{counter}.json"
+        filename = f"./json/{counter}.json"
         counter += 1
         with open(filename, "w", encoding="utf-8") as f:
             f.write(metadata_json)
         # break
         # Insert metadata into the database
         try:
-            shorthash = generate_short_hash(name_en + str(counter - 1))
+            shorthash = generate_short_hash(graduate["name_en"] + str(counter - 1))
+            print("parse/ ", graduate["name_en"], counter - 1, shorthash)
+
             # Check if the record exists in the database
             cursor.execute("SELECT id FROM upload_diplomas WHERE hash_id = %s AND deleted_at IS NULL", (shorthash,))
             existing_record = cursor.fetchone()
@@ -484,25 +560,114 @@ def parseData(file, id):
                 # If the record exists, update it
                 cursor.execute(
                     "UPDATE upload_diplomas SET value = %s, university_id = %s WHERE hash_id = %s AND deleted_at IS NULL",
-                    (metadata_json, id, shorthash)
+                    (metadata_json, university_id, shorthash)
                 )
             else:
                 cursor.execute(
                     "INSERT INTO upload_diplomas (value, university_id, hash_id) VALUES (%s, %s, %s)",
-                    (metadata_json, id, shorthash)
+                    (metadata_json, university_id, shorthash)
                 )
             connection.commit()
         except psycopg2.Error as e:
             print("Error inserting data into the database:", e)
 
     fullMetadata += "]"
-    with open("fullMetadata.json", "w") as f:
+    createFolderIfNotExists(f"storage/jsons/{university_id}")
+    with open(f"storage/jsons/{university_id}/fullMetadata.json", "w") as f:
         f.write(fullMetadata)
-    image_path = os.path.join('./', "fullMetadata.json")
-    # Check if the image file exists
-    if os.path.isfile(image_path):
-        # Return the image file
-        return send_file(image_path)
+    # file_path = os.path.join('./', "storage/fullMetadata.json")
+    # # Check if the file exists
+    # if os.path.isfile(file_path):
+    #     # Return the file
+    #     return send_file(file_path)
+    try:
+        zip_folder(folder_path=f"storage/images/{university_id}", zip_path=f"storage/archives/{university_id}.zip")
+        return f"http://generator.ediploma.kz/get-file/archives/{university_id}.zip"
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+@app.route("/nft/upload/<university_id>", methods=["GET"])
+def uploadToNFT(university_id, file_directory="storage/images/"):
+    file_directory += str(university_id)
+    url = "https://api.nft.storage/upload"
+
+    # List all files in the directory
+    file_names = os.listdir(file_directory)
+
+    # Create a dictionary to hold the files
+    files = []
+    for file_name in file_names:
+        file_path = os.path.join(file_directory, file_name)
+        files.append(('file', (file_name, open(file_path, 'rb'))))
+
+    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEMxM2ZiNGExNUQxNzkyMjQ0MjcxQ2U5MzY0ZDI5OTdjMUI1NTY1NTciLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTY5NjA5NTg1NDY2MCwibmFtZSI6Imphc2FpbSJ9.84ZE8_mZ227yn5p4j8F5y67M4_df9afEYNfaJ60B6bg"
+    # Send the request
+    headers = {
+        'Authorization': f'Bearer {token}'
+    }
+
+    response = requests.post(url, files=files, headers=headers)
+
+    # Check the response
+    if response.status_code == 200:
+        data = response.json()
+        cid = data['value']['cid']
+        return cid
+    else:
+        print("Error:", response.status_code, response.text)
+
+
+@app.route("/nft/generate/<university_id>", methods=["GET"])
+def generateIPFS(university_id):
+    imagesCid = uploadToNFT(university_id, "storage/images/")
+    updateMetaData(university_id, imagesCid)
+    metaDataCid = uploadToNFT(university_id, "storage/jsons/")
+    return metaDataCid, 200
+
+
+def commitSmartContract():
+    pass
+
+
+@app.route("/123/<university_id>/<cid>", methods=["GET"])
+def updateMetaData(university_id, cid):
+    try:
+        fullMetaData = None
+        file_path = f"storage/jsons/{university_id}/fullMetadata.json"
+        with open(file_path, "r") as f:
+            fullMetaData = json.loads(f.read())
+            f.close()
+        for i in range(len(fullMetaData)):
+            temp = fullMetaData[i]['image']
+            temp = temp.split('get-file/')
+            if len(temp) > 1:
+                temp = temp[1]
+                link = f"https://ipfs.io/ipfs/{cid}/{temp}"
+                fullMetaData[i]['image'] = link
+        with open(file_path, "w") as f:
+            f.write(json.dumps(fullMetaData))
+            f.close()
+            connection, cursor = connectDatabase()
+        cursor.execute("SELECT * FROM universities WHERE id = %s", (university_id,))
+        existing_record = cursor.fetchone()
+        if existing_record:
+            # If the record exists, update it
+            existing_data = existing_record[3]
+            existing_data.append(cid)
+            cursor.execute(
+                "UPDATE universities SET cids = %s WHERE id = %s",
+                (existing_data,university_id,)
+            )
+            connection.commit()
+
+
+        else:
+            return {"error": "No query results for " + university_id}
+
+        return file_path
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 
 @app.route('/data/parse', methods=['GET', "POST"])
@@ -538,38 +703,44 @@ def update_diploma():
         try:
             # Assuming request.data is a list of dictionaries
             for data in request.json:
-                if "name" in data:
-                    name_en = data["name"]
-                    counter = data["counter"]
-                    shorthash = generate_short_hash(name_en + str(counter))
-                    # Check if the record exists in the database
-                    cursor.execute("SELECT * FROM upload_diplomas WHERE hash_id = %s", (shorthash,))
-                    existing_record = cursor.fetchone()
+                metadata = {}
+                if "attributes" not in data or len(data["attributes"]) == 0:
+                    return {"error": "attributes are required, for: " + data["name"]}, 400
+                for i in data["attributes"]:
+                    metadata[i["name"]] = None if i["value"] == "NONE" else i["value"]
 
-                    if existing_record:
-                        # If the record exists, update it
-                        existing_data = existing_record[2]  # Assuming 'value' is the second column
+                name_en = metadata["name_en"].strip()
+                counter = data["counter"]
+                shorthash = generate_short_hash(name_en + str(counter))
+                print("update/ ", name_en, counter, shorthash)
+                # Check if the record exists in the database
+                cursor.execute("SELECT * FROM upload_diplomas WHERE hash_id = %s", (shorthash,))
+                existing_record = cursor.fetchone()
 
-                        if existing_data == data:
-                            print(f"Diploma for {name_en} is the same; no update needed.")
-                        else:
-                            cursor.execute(
-                                "UPDATE upload_diplomas SET value = %s WHERE hash_id = %s",
-                                (json.dumps(data), shorthash)
-                            )
-                            connection.commit()
-                            print(f"Diploma for {name_en} updated successfully.")
-                            regenerate_diploma(name_en, counter)
+                if existing_record:
+                    # If the record exists, update it
+                    existing_data = existing_record[2]  # Assuming 'value' is the second column
+
+                    if existing_data == data:
+                        pass
+                        # print(f"Diploma for {name_en} is the same; no update needed.")
                     else:
-                        # If the record doesn't exist, insert a new one
                         cursor.execute(
-                            "INSERT INTO upload_diplomas (value, university_id, hash_id) VALUES (%s, %s, %s)",
-                            (json.dumps(data), None, shorthash)
+                            "UPDATE upload_diplomas SET value = %s WHERE hash_id = %s",
+                            (json.dumps(data), shorthash)
                         )
                         connection.commit()
-                        print(f"Diploma for {name_en} inserted successfully.")
+                        generateDiplomaImage(metadata, counter, 1)
+                        print(f"Diploma for {name_en} updated successfully.")
                 else:
-                    print("Missing 'name_en' in data:", data)
+                    # If the record doesn't exist, insert a new one
+                    cursor.execute(
+                        "INSERT INTO upload_diplomas (value, university_id, hash_id) VALUES (%s, %s, %s)",
+                        (json.dumps(data), None, shorthash)
+                    )
+                    connection.commit()
+                    print(f"Diploma for {name_en} inserted successfully.")
+
         except psycopg2.Error as e:
             print("Error updating data in the database:", e)
         finally:
@@ -578,73 +749,18 @@ def update_diploma():
         return 'Updated'
     return None
 
-def regenerate_diploma(name_en, counter):
-    connection, cursor = connectDatabase()
 
-    if connection is None or cursor is None:
-        return {"error": "Error connecting to the database."}
-
-    try:
-        shorthash = generate_short_hash(name_en + str(counter))
-        # Check if the record exists in the database
-        cursor.execute("SELECT value FROM upload_diplomas WHERE hash_id = %s", (shorthash,))
-        existing_data = cursor.fetchone()
-
-        if existing_data:
-            existing_data = json.loads(existing_data[0])
-            # You can modify the existing data here if needed
-            # For example, if you want to update the name in the diploma:
-            existing_data["attributes"][2]["value"] = name_en
-
-            # Re-generate the diploma using the updated data
-            regenerated_diploma_response = parseData(None, None, existing_data)
-
-            if "image" in regenerated_diploma_response:
-                regenerated_image_path = regenerated_diploma_response["image"]
-                # Save the regenerated diploma as a new image file
-                regenerated_image = Image.open(regenerated_image_path)
-
-                regenerated_filename = f"./Diplomas/{name_en.replace(' ', '_')}_{counter}_regenerated.jpeg"
-                regenerated_image.save(regenerated_filename, 'JPEG')
-
-                # Update the database with the regenerated data
-                cursor.execute(
-                    "UPDATE upload_diplomas SET value = %s WHERE hash_id = %s",
-                    (json.dumps(existing_data), shorthash)
-                )
-                connection.commit()
-
-                print(f"Diploma for {name_en} regenerated and updated successfully.")
-                return {
-                    "message": f"Diploma for {name_en} regenerated and updated successfully.",
-                    "regenerated_image_path": regenerated_filename
-                }
-            else:
-                print("No image found in the regenerated diploma response.")
-                return {"error": "No image found in the regenerated diploma response."}
-        else:
-            print(f"Diploma for {name_en} with counter {counter} not found in the database.")
-            return {"error": f"Diploma for {name_en} with counter {counter} not found in the database."}
-
-    except psycopg2.Error as e:
-        print("Error regenerating data in the database:", e)
-        return {"error": "Error regenerating data in the database."}
-    
-    finally:
-        cursor.close()
-        connection.close()
-
-@app.route("/get-image/<image_name>")
+@app.route("/get-file/<path:image_name>")
 def get_image(image_name):
     # Specify the directory where your diploma images are stored
-    image_directory = "./Diplomas"
+    image_directory = "./storage"
 
     # Create the full path to the requested image
-    image_path = os.path.join(image_directory, f"{image_name}")
+    file_path = os.path.join(image_directory, f"{image_name}")
     # Check if the image file exists
-    if os.path.isfile(image_path):
+    if os.path.isfile(file_path):
         # Return the image file
-        return send_file(image_path, mimetype="image/jpeg")
+        return send_file(file_path)
     else:
         # Return an error message or a default image if the requested image doesn't exist
         return "Image not found", 404
@@ -659,5 +775,6 @@ def get_sample_file():
         return "File not found", 404
 
 
+CORS(app)
 if __name__ == "__main__":
     app.run(debug=True)
