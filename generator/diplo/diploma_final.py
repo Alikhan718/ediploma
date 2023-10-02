@@ -381,7 +381,7 @@ def generateDiplomaImage(graduate, counter, university_id):
     diploma.save(f'./storage/images/{university_id}/{name_file}.jpeg', 'JPEG')
     metadata = {
         "description": f"KBTU 2023 Graduate {name_file}",
-        "image": f"http://localhost:5000/get-file/{name_file}.jpeg",
+        "image": f"http://generator.ediploma.kz/get-file/{name_file}.jpeg",
         "name": name_en,
         "counter": counter,
         "attributes": [
