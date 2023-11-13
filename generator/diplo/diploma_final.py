@@ -1,4 +1,4 @@
-# run command # nohup python3 -m flask --app diploma_final.py run &
+# run command # nohup python3 -m flask --app diploma_final.py run --debug &
 
 import hashlib
 import os
@@ -386,10 +386,6 @@ def generateDiplomaImage(graduate, counter, university_id):
         "counter": counter,
         "attributes": [
             {
-                "name": "number",
-                "value": number
-            },
-            {
                 "name": "name_kz",
                 "value": name_kz
             },
@@ -492,7 +488,7 @@ def parseData(file, university_id):
 
     fullMetadata = "["
     # Iterate through rows and columns starting from row 3
-    for row in sheet.iter_rows(min_row=3, values_only=True):
+    for row in sheet.iter_rows(min_row=1, values_only=True):
         # numbers
         numbers.append(row[0])
         # names
@@ -581,6 +577,7 @@ def parseData(file, university_id):
     #     # Return the file
     #     return send_file(file_path)
     try:
+        createFolderIfNotExists(f"storage/archives/{university_id}")
         zip_folder(folder_path=f"storage/images/{university_id}", zip_path=f"storage/archives/{university_id}.zip")
         return f"http://generator.ediploma.kz/get-file/archives/{university_id}.zip"
     except Exception as e:
@@ -623,15 +620,13 @@ def generateIPFS(university_id):
     imagesCid = uploadToNFT(university_id, "storage/images/")
     updateMetaData(university_id, imagesCid)
     metaDataCid = uploadToNFT(university_id, "storage/jsons/")
+    saveMetaDataCid(university_id, metaDataCid)
+    diplomaSave(metaDataCid, university_id)
     return metaDataCid, 200
 
 
-def commitSmartContract():
-    pass
-
-
 @app.route("/123/<university_id>/<cid>", methods=["GET"])
-def updateMetaData(university_id, cid):
+def updateMetaData(university_id, images_cid):
     try:
         fullMetaData = None
         file_path = f"storage/jsons/{university_id}/fullMetadata.json"
@@ -643,31 +638,127 @@ def updateMetaData(university_id, cid):
             temp = temp.split('get-file/')
             if len(temp) > 1:
                 temp = temp[1]
-                link = f"https://ipfs.io/ipfs/{cid}/{temp}"
+                link = f"https://ipfs.io/ipfs/{images_cid}/{temp}"
                 fullMetaData[i]['image'] = link
         with open(file_path, "w") as f:
             f.write(json.dumps(fullMetaData))
             f.close()
-            connection, cursor = connectDatabase()
+
+        return file_path
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+def saveMetaDataCid(university_id, metadata_cid):
+    try:
+        connection, cursor = connectDatabase()
         cursor.execute("SELECT * FROM universities WHERE id = %s", (university_id,))
         existing_record = cursor.fetchone()
         if existing_record:
             # If the record exists, update it
             existing_data = existing_record[3]
-            existing_data.append(cid)
+            existing_data.append(metadata_cid)
             cursor.execute(
                 "UPDATE universities SET cids = %s WHERE id = %s",
-                (existing_data,university_id,)
+                (existing_data, university_id,)
             )
             connection.commit()
-
+            return True
 
         else:
             return {"error": "No query results for " + university_id}
 
-        return file_path
     except Exception as e:
         return {"error": str(e)}, 500
+
+
+@app.route('/diploma/save/<cid>/<university_id>')
+def diplomaSave(cid, university_id):
+    url = f"https://ipfs.io/ipfs/{cid}/fullMetadata.json"
+    response = requests.get(url)
+
+    # Check the response
+    if response.status_code == 200:
+        body = response.json()
+
+        requiredAttr = [
+            "name_en",
+            "name_ru",
+            "name_kz",
+            "university_id",
+            "year",
+            "qualification_en",
+            "qualification_kz",
+            "qualification_ru",
+            "image"
+        ]
+        dataList = []
+        fieldsList = []
+        try:
+            connection, cursor = connectDatabase()
+            diploma_id = -1
+            for item in body:
+
+                data = {'image': item['image']}
+                contentFields = {}
+                attributes = item['attributes']
+
+                data['year'] = 2023
+                for attr in attributes:
+                    if attr['name'] == 'number':
+                        continue
+
+                    # if attr['name'] == 'protocol_kz':
+
+                    if attr['name'] in requiredAttr:
+                        data[attr['name']] = attr['value']
+                    else:
+                        contentFields[attr['name']] = attr['value']
+
+                dataList.append(data)
+                fieldsList.append(contentFields)
+
+                # Construct and execute the SQL query to insert data into
+                # the database
+                query = (
+                    "INSERT INTO diplomas("
+                    "name_en, name_ru, name_kz, university_id, year, "
+                    "speciality_en, speciality_ru, speciality_kz, image"
+                    ") "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                    "RETURNING id"
+                )
+                values = (
+                    data["name_en"], data["name_ru"], data["name_kz"],
+                    university_id, data["year"],
+                    data["qualification_en"], data["qualification_ru"],
+                    data["qualification_kz"],
+                    data["image"]
+                )
+
+                cursor.execute(query, values)
+
+                # Retrieve the ID of the inserted record
+                diploma_id = cursor.fetchone()[0]
+                connection.commit()
+
+                # inserting additional fields
+                for key, val in contentFields.items():
+                    query = (
+                        "INSERT INTO content_fields(type, value, content_id) "
+                        "VALUES (%s, %s, %s)"
+                    )
+                    values = ("diploma_" + key, val, diploma_id)
+
+                    cursor.execute(query, values)
+
+                connection.commit()
+
+        except Exception as e:
+            return {"error": str(e)}, 500
+    else:
+        print("Error:", response.status_code, response.text)
+    return {"message": "success"}, 200
 
 
 @app.route('/data/parse', methods=['GET', "POST"])
@@ -678,12 +769,36 @@ def upload():
             return {'error': 'File required'}
         if 'university_id' not in request.values:
             return {'error': 'No university ID'}
+
+        university_id = request.form.get('university_id')
+        try:
+            connection, cursor = connectDatabase()
+
+            if connection is None or cursor is None:
+                return {"error": "Error connecting to the database."}
+            cursor.execute("SELECT publish_amount FROM universities WHERE id = %s", (university_id,))
+            existing_record = cursor.fetchone()
+
+            if existing_record:
+                publish_amount = existing_record[0]
+                if publish_amount <= 0:
+                    return {"error": "Вы исчерпали кол-во генераций"}, 403
+                else:
+                    cursor.execute("update universities "
+                                   "set publish_amount = %s "
+                                   "where id = %s",
+                                   (publish_amount - 1, university_id,))
+                    connection.commit()
+
+        except Exception as e:
+            return {"error": str(e)}, 500
+        connection.commit()
         file = request.files['file']
         # If the user does not select a file, the browser submits an
         # empty file without a filename.
         if file.filename == '':
             return {'error': 'No selected file'}
-        return parseData(file, request.form.get('university_id'))
+        return parseData(file, university_id)
     return 'here'
 
 
@@ -750,13 +865,13 @@ def update_diploma():
     return None
 
 
-@app.route("/get-file/<path:image_name>")
-def get_image(image_name):
+@app.route("/get-file/<path:file_path>")
+def get_image(file_path):
     # Specify the directory where your diploma images are stored
     image_directory = "./storage"
 
     # Create the full path to the requested image
-    file_path = os.path.join(image_directory, f"{image_name}")
+    file_path = os.path.join(image_directory, f"{file_path}")
     # Check if the image file exists
     if os.path.isfile(file_path):
         # Return the image file
