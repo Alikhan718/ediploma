@@ -3,6 +3,8 @@
 import hashlib
 import os
 import re
+import shutil
+import stat
 import textwrap
 import warnings
 import zipfile
@@ -79,6 +81,7 @@ def connectDatabase():
 
 
 app = Flask(__name__)
+CORS(app)
 
 
 # Remove invalid characters
@@ -154,7 +157,16 @@ def generateDiplomaImage(graduate, counter, university_id):
     distinction_kz = graduate["distinction_kz"]
     distinction_ru = graduate["distinction_ru"]
     distinction_en = graduate["distinction_en"]
-
+    iin = graduate["iin"]
+    phone = graduate["phone"]
+    email = graduate["email"]
+    gpa = graduate["gpa"]
+    region = graduate["region"]
+    gender = graduate["gender"]
+    nationality = graduate["nationality"]
+    grant = graduate["grant"]
+    faculty = graduate["faculty"]
+    diploma_total = graduate["diploma_total"]
     # Create a copy of the diploma template.
     diploma = template.copy().convert('RGB')
     # Create a draw object for the diploma.
@@ -385,66 +397,31 @@ def generateDiplomaImage(graduate, counter, university_id):
         "name": name_en,
         "counter": counter,
         "attributes": [
-            {
-                "name": "name_kz",
-                "value": name_kz
-            },
-            {
-                "name": "name_ru",
-                "value": name_ru
-            },
-            {
-                "name": "name_en",
-                "value": name_en
-            },
-            {
-                "name": "protocol_kz",
-                "value": protocol_kz
-            },
-            {
-                "name": "protocol_ru",
-                "value": protocol_ru
-            },
-            {
-                "name": "protocol_en",
-                "value": protocol_en
-            },
-            {
-                "name": "degree_kz",
-                "value": degree_kz
-            },
-            {
-                "name": "degree_ru",
-                "value": degree_ru
-            },
-            {
-                "name": "degree_en",
-                "value": degree_en
-            },
-            {
-                "name": "qualification_kz",
-                "value": qualification_kz
-            },
-            {
-                "name": "qualification_ru",
-                "value": qualification_ru
-            },
-            {
-                "name": "qualification_en",
-                "value": qualification_en
-            },
-            {
-                "name": "distinction_kz",
-                "value": distinction_kz
-            },
-            {
-                "name": "distinction_ru",
-                "value": distinction_ru
-            },
-            {
-                "name": "distinction_en",
-                "value": distinction_en
-            }
+            {"name": "name_kz", "value": name_kz},
+            {"name": "name_ru", "value": name_ru},
+            {"name": "name_en", "value": name_en},
+            {"name": "protocol_kz", "value": protocol_kz},
+            {"name": "protocol_ru", "value": protocol_ru},
+            {"name": "protocol_en", "value": protocol_en},
+            {"name": "degree_kz", "value": degree_kz},
+            {"name": "degree_ru", "value": degree_ru},
+            {"name": "degree_en", "value": degree_en},
+            {"name": "qualification_kz", "value": qualification_kz},
+            {"name": "qualification_ru", "value": qualification_ru},
+            {"name": "qualification_en", "value": qualification_en},
+            {"name": "distinction_kz", "value": distinction_kz},
+            {"name": "distinction_ru", "value": distinction_ru},
+            {"name": "iin", "value": iin},
+            {"name": "phone", "value": phone},
+            {"name": "email", "value": email},
+            {"name": "gpa", "value": gpa},
+            {"name": "region", "value": region},
+            {"name": "gender", "value": gender},
+            {"name": "nationality", "value": nationality},
+            {"name": "grant", "value": grant},
+            {"name": "faculty", "value": faculty},
+            {"name": "diploma_total", "value": diploma_total},
+
         ]
     }
     return metadata
@@ -485,10 +462,25 @@ def parseData(file, university_id):
     with_distinctions_kaz = []
     with_distinctions_rus = []
     with_distinctions_eng = []
+    # additional data for analysis
+    iin = []
+    phone = []
+    email = []
+    gpa = []
+    region = []
+    gender = []
+    nationality = []
+    grant = []
+    faculty = []
+    diploma_total = []
 
     fullMetadata = "["
+    tempCounter = 0
     # Iterate through rows and columns starting from row 3
     for row in sheet.iter_rows(min_row=1, values_only=True):
+        tempCounter += 1
+        if tempCounter < 3:
+            continue
         # numbers
         numbers.append(row[0])
         # names
@@ -511,27 +503,54 @@ def parseData(file, university_id):
         with_distinctions_kaz.append(row[15])
         with_distinctions_rus.append(row[16])
         with_distinctions_eng.append(row[17])
+        # additional data for analysis
+        iin.append(row[18]) 
+        phone.append(row[19])
+        email.append(row[20])
+        gpa.append(row[21])
+        region.append(row[22])
+        gender.append(row[23])
+        nationality.append(row[24])
+        grant.append(row[25])
+        faculty.append(row[26])
+        diploma_total.append(row[27])
 
     # Gain all values separately
     counter = 1
     for i in range(len(names_kaz)):
         graduate = {
             "number": str(numbers[i]).strip(),
+
             "name_kz": str(names_kaz[i]).strip(),
             "name_ru": str(names_rus[i]).strip(),
             "name_en": str(names_eng[i]).strip(),
+
             "protocol_kz": str(protocols_kaz[i]).strip().replace("№", "#"),
             "protocol_ru": str(protocols_rus[i]).strip().replace("№", "#"),
             "protocol_en": str(protocols_eng[i]).strip().replace("№", "#"),
+
             "degree_kz": str(degrees_kaz[i]).upper().strip(),
             "degree_ru": str(degrees_rus[i]).upper().strip(),
             "degree_en": str(degrees_eng[i]).upper().strip(),
+
             "qualification_kz": str(qualifications_kaz[i]).upper().strip(),
             "qualification_ru": str(qualifications_rus[i]).upper().strip(),
             "qualification_en": str(qualifications_eng[i]).upper().strip(),
+
             "distinction_kz": str(with_distinctions_kaz[i]).upper().strip(),
             "distinction_ru": str(with_distinctions_rus[i]).upper().strip(),
-            "distinction_en": str(with_distinctions_eng[i]).upper().strip()
+            "distinction_en": str(with_distinctions_eng[i]).upper().strip(),
+
+            "iin": str(iin[i]).strip(),
+            "phone": str(phone[i]).strip(),
+            "email": str(email[i]).strip(),
+            "gpa": float(gpa[i]),
+            "region": str(region[i]).strip(),
+            "gender": str(gender[i]).strip(),
+            "nationality": str(nationality[i]).strip(),
+            "grant": str(grant[i]).strip(),
+            "faculty": str(faculty[i]).strip(),
+            "diploma_total": float(diploma_total[i]),
         }
         metadata = generateDiplomaImage(graduate=graduate, counter=counter, university_id=university_id)
         # Convert the dictionary into a JSON string
@@ -577,11 +596,30 @@ def parseData(file, university_id):
     #     # Return the file
     #     return send_file(file_path)
     try:
-        createFolderIfNotExists(f"storage/archives/{university_id}")
+        createFolderIfNotExists(f"storage/archives")
         zip_folder(folder_path=f"storage/images/{university_id}", zip_path=f"storage/archives/{university_id}.zip")
         return f"http://generator.ediploma.kz/get-file/archives/{university_id}.zip"
     except Exception as e:
         return {"error": str(e)}, 500
+
+
+from concurrent.futures import ThreadPoolExecutor, wait
+
+
+def upload_file(file_path, url, headers, parent_cid=None):
+    with open(file_path, 'rb') as file:
+        files = {'file': (os.path.basename(file_path), file)}
+        if parent_cid:
+            headers['X-IPFS-PATH'] = f'{parent_cid}/'
+        response = requests.post(url, files=files, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            cid = data['value']['cid']
+            print(f"Uploaded {file_path}. CID: {cid}")
+            return cid
+        else:
+            print(f"Error uploading {file_path}. Status Code: {response.status_code}, Response: {response.text}")
+            return None
 
 
 @app.route("/nft/upload/<university_id>", methods=["GET"])
@@ -598,13 +636,13 @@ def uploadToNFT(university_id, file_directory="storage/images/"):
         file_path = os.path.join(file_directory, file_name)
         files.append(('file', (file_name, open(file_path, 'rb'))))
 
+    # Replace "your_token_here" with your actual token
     token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEMxM2ZiNGExNUQxNzkyMjQ0MjcxQ2U5MzY0ZDI5OTdjMUI1NTY1NTciLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTY5NjA5NTg1NDY2MCwibmFtZSI6Imphc2FpbSJ9.84ZE8_mZ227yn5p4j8F5y67M4_df9afEYNfaJ60B6bg"
-    # Send the request
-    headers = {
-        'Authorization': f'Bearer {token}'
-    }
+    headers = {'Authorization': f'Bearer {token}'}
 
-    response = requests.post(url, files=files, headers=headers)
+    # Use requests.Session for improved performance
+    with requests.Session() as session:
+        response = session.post(url, files=files, headers=headers)
 
     # Check the response
     if response.status_code == 200:
@@ -615,13 +653,116 @@ def uploadToNFT(university_id, file_directory="storage/images/"):
         print("Error:", response.status_code, response.text)
 
 
+# def uploadToNFT(university_id, file_directory="storage/images/"):
+#     file_directory += str(university_id)
+#     url = "https://api.nft.storage/upload"
+#
+#     # List all files in the directory
+#     file_names = os.listdir(file_directory)
+#
+#     # Create a dictionary to hold the files
+#     files = []
+#     for file_name in file_names:
+#         file_path = os.path.join(file_directory, file_name)
+#         files.append(('file', (file_name, open(file_path, 'rb'))))
+#
+#     token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEMxM2ZiNGExNUQxNzkyMjQ0MjcxQ2U5MzY0ZDI5OTdjMUI1NTY1NTciLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTY5NjA5NTg1NDY2MCwibmFtZSI6Imphc2FpbSJ9.84ZE8_mZ227yn5p4j8F5y67M4_df9afEYNfaJ60B6bg"
+#     # Send the request
+#     headers = {
+#         'Authorization': f'Bearer {token}'
+#     }
+#
+#     response = requests.post(url, files=files, headers=headers)
+#
+#     # Check the response
+#     if response.status_code == 200:
+#         data = response.json()
+#         cid = data['value']['cid']
+#         return cid
+#     else:
+#         print("Error:", response.status_code, response.text)
+
+# def uploadToNFT(university_id, file_directory="storage/images/"):
+#     file_directory += str(university_id)
+#     url = "https://api.nft.storage/upload"
+#     token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEMxM2ZiNGExNUQxNzkyMjQ0MjcxQ2U5MzY0ZDI5OTdjMUI1NTY1NTciLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTY5NjA5NTg1NDY2MCwibmFtZSI6Imphc2FpbSJ9.84ZE8_mZ227yn5p4j8F5y67M4_df9afEYNfaJ60B6bg"  # Replace with your actual API token
+#     headers = {'Authorization': f'Bearer {token}'}
+#
+#     # List all files in the directory
+#     file_names = os.listdir(file_directory)
+#
+#     # Upload the first file and get the CID
+#     first_file_path = os.path.join(file_directory, file_names[0])
+#     first_cid = upload_file(first_file_path, url, headers)
+#
+#     if first_cid:
+#         # Upload the remaining files using the first CID in parallel
+#         with ThreadPoolExecutor() as executor:
+#             futures = [executor.submit(upload_file, os.path.join(file_directory, file_name), url, headers,
+#                                        parent_cid=first_cid) for file_name in file_names[1:]]
+#
+#         # Wait for all tasks to complete
+#         wait(futures)
+#
+#         # Return the common CID
+#         return first_cid
+#
+#     # Return None if the upload of the first file fails
+#     return None
+
+
+# def uploadToNFT(university_id, file_directory="storage/images/"):
+#     file_directory += str(university_id)
+#     url = "https://api.nft.storage/upload"
+#
+#     # List all files in the directory
+#     file_names = os.listdir(file_directory)
+#
+#     # Create a dictionary to hold the files
+#     files = []
+#     for file_name in file_names:
+#         file_path = os.path.join(file_directory, file_name)
+#         files.append(('file', (file_name, open(file_path, 'rb'))))
+#
+#     token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEMxM2ZiNGExNUQxNzkyMjQ0MjcxQ2U5MzY0ZDI5OTdjMUI1NTY1NTciLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTY5NjA5NTg1NDY2MCwibmFtZSI6Imphc2FpbSJ9.84ZE8_mZ227yn5p4j8F5y67M4_df9afEYNfaJ60B6bg"
+#     # Send the request
+#     headers = {
+#         'Authorization': f'Bearer {token}'
+#     }
+#
+#     response = requests.post(url, files=files, headers=headers)
+#
+#     # Check the response
+#     if response.status_code == 200:
+#         data = response.json()
+#         cid = data['value']['cid']
+#         return cid
+#     else:
+#         print("Error:", response.status_code, response.text)
+#
+
+
 @app.route("/nft/generate/<university_id>", methods=["GET"])
 def generateIPFS(university_id):
+    # Upload images
     imagesCid = uploadToNFT(university_id, "storage/images/")
+    print(f"Uploaded images: {imagesCid}")
+
+    # Update metadata with the image CID
     updateMetaData(university_id, imagesCid)
+
+    # Upload metadata
     metaDataCid = uploadToNFT(university_id, "storage/jsons/")
+    print(f"Uploaded metadata: {metaDataCid}")
+
+    # Save metadata CID
     saveMetaDataCid(university_id, metaDataCid)
+    print(f"CID saved: {metaDataCid}")
+
+    # Save diploma
     diplomaSave(metaDataCid, university_id)
+    print(f"Inserted diplomas to database ")
+
     return metaDataCid, 200
 
 
@@ -654,17 +795,17 @@ def saveMetaDataCid(university_id, metadata_cid):
         connection, cursor = connectDatabase()
         cursor.execute("SELECT * FROM universities WHERE id = %s", (university_id,))
         existing_record = cursor.fetchone()
+
         if existing_record:
             # If the record exists, update it
             existing_data = existing_record[3]
             existing_data.append(metadata_cid)
             cursor.execute(
-                "UPDATE universities SET cids = %s WHERE id = %s",
-                (existing_data, university_id,)
+                "UPDATE universities SET cids = %s, publish_amount = %s WHERE id = %s",
+                (existing_data, existing_record[4] - 1, university_id,)
             )
             connection.commit()
             return True
-
         else:
             return {"error": "No query results for " + university_id}
 
@@ -689,8 +830,7 @@ def diplomaSave(cid, university_id):
             "year",
             "qualification_en",
             "qualification_kz",
-            "qualification_ru",
-            "image"
+            "qualification_ru"
         ]
         dataList = []
         fieldsList = []
@@ -761,6 +901,23 @@ def diplomaSave(cid, university_id):
     return {"message": "success"}, 200
 
 
+def removeFolder(folder_path):
+    try:
+        # List all files in the folder
+        files = os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), folder_path))
+        print(files)
+        # Iterate over the files and delete each one
+        for file_name in files:
+            file_path = os.path.join(folder_path, file_name)
+
+            os.remove(file_path)
+            print(f"File '{folder_path}' has been successfully deleted.")
+
+        print(f"All files in the folder '{folder_path}' have been deleted.")
+    except OSError as e:
+        print(f"Error: {e}")
+
+
 @app.route('/data/parse', methods=['GET', "POST"])
 def upload():
     if request.method == 'POST':
@@ -772,6 +929,12 @@ def upload():
 
         university_id = request.form.get('university_id')
         try:
+            images_folder = f"storage/images/{university_id}"
+            archive_folder = f"storage/archives"
+            jsons_folder = f"storage/jsons/{university_id}"
+            removeFolder(images_folder)
+            removeFolder(archive_folder)
+            removeFolder(jsons_folder)
             connection, cursor = connectDatabase()
 
             if connection is None or cursor is None:
@@ -783,12 +946,7 @@ def upload():
                 publish_amount = existing_record[0]
                 if publish_amount <= 0:
                     return {"error": "Вы исчерпали кол-во генераций"}, 403
-                else:
-                    cursor.execute("update universities "
-                                   "set publish_amount = %s "
-                                   "where id = %s",
-                                   (publish_amount - 1, university_id,))
-                    connection.commit()
+
 
         except Exception as e:
             return {"error": str(e)}, 500
@@ -890,6 +1048,16 @@ def get_sample_file():
         return "File not found", 404
 
 
-CORS(app)
+excluded_paths = ['storage', 'json']
+
+
+def should_reload(filename):
+    # Check if the file is in an excluded path
+    for excluded_path in excluded_paths:
+        if filename.startswith(excluded_path):
+            return False
+    return True
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, extra_files=should_reload)

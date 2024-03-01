@@ -1,0 +1,461 @@
+.CV {
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+}
+
+.CV .overlap-wrapper {
+  background-color: var(--style-guide-color-neutral-50);
+  width: 595px;
+  height: 842px;
+}
+
+.CV .overlap {
+  position: relative;
+  height: 842px;
+}
+
+.CV .bg {
+  position: absolute;
+  width: 190px;
+  height: 842px;
+  top: 0;
+  left: 0;
+  background-color: var(--style-guide-color-light-dark-800);
+}
+
+.CV .content {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  position: absolute;
+  top: 28px;
+  left: 20px;
+}
+
+.CV .general {
+  display: flex;
+  flex-direction: column;
+  width: 555px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  position: relative;
+  flex: 0 0 auto;
+  background-color: var(--style-guide-color-primary-500);
+}
+
+.CV .caption {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .avatar {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  background-image: url(./img/ellipse-28.png);
+  background-size: cover;
+  background-position: 50% 50%;
+}
+
+.CV .title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0px 0px;
+  flex: 1;
+  flex-grow: 1;
+  flex-direction: column;
+  position: relative;
+}
+
+.CV .text-wrapper {
+  position: relative;
+  align-self: stretch;
+  margin-top: -1px;
+  font-family: var(--body-semibold-semibold-2-font-family);
+  font-weight: var(--body-semibold-semibold-2-font-weight);
+  color: var(--style-guide-color-light-dark-50);
+  font-size: var(--body-semibold-semibold-2-font-size);
+  letter-spacing: var(--body-semibold-semibold-2-letter-spacing);
+  line-height: var(--body-semibold-semibold-2-line-height);
+  font-style: var(--body-semibold-semibold-2-font-style);
+}
+
+.CV .view {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .div {
+  position: relative;
+  width: fit-content;
+  margin-top: -1px;
+  font-family: var(--body-medium-medium-7-font-family);
+  font-weight: var(--body-medium-medium-7-font-weight);
+  color: var(--style-guide-color-light-dark-100);
+  font-size: var(--body-medium-medium-7-font-size);
+  text-align: center;
+  letter-spacing: var(--body-medium-medium-7-letter-spacing);
+  line-height: var(--body-medium-medium-7-line-height);
+  white-space: nowrap;
+  font-style: var(--body-medium-medium-7-font-style);
+}
+
+.CV .ellipse {
+  position: relative;
+  width: 4px;
+  height: 4px;
+  background-color: var(--style-guide-color-light-dark-50);
+  border-radius: 2px;
+}
+
+.CV .base {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 5px 5px;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+  display: flex;
+  position: relative;
+}
+
+.CV .div-2 {
+  width: 180px;
+  align-items: center;
+  gap: 8px;
+  display: flex;
+  position: relative;
+}
+
+.CV .img {
+  position: relative;
+  width: 14px;
+  height: 14px;
+}
+
+.CV .text-wrapper-2 {
+  position: relative;
+  width: fit-content;
+  font-family: "Montserrat-Regular", Helvetica;
+  font-weight: 400;
+  color: var(--style-guide-color-light-dark-50);
+  font-size: 9px;
+  letter-spacing: 0;
+  line-height: 10.8px;
+  white-space: nowrap;
+}
+
+.CV .icon {
+  position: relative;
+  width: 16px;
+  height: 14px;
+}
+
+.CV .telegram {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  top: 0;
+  left: 1px;
+}
+
+.CV .p {
+  position: relative;
+  align-self: stretch;
+  font-family: var(--body-regular-regular-8-font-family);
+  font-weight: var(--body-regular-regular-8-font-weight);
+  color: var(--style-guide-color-light-dark-50);
+  font-size: var(--body-regular-regular-8-font-size);
+  letter-spacing: var(--body-regular-regular-8-letter-spacing);
+  line-height: var(--body-regular-regular-8-line-height);
+  font-style: var(--body-regular-regular-8-font-style);
+}
+
+.CV .main {
+  display: inline-flex;
+  gap: 62px;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  position: relative;
+}
+
+.CV .left-info {
+  display: flex;
+  flex-direction: column;
+  width: 150px;
+  align-items: flex-start;
+  gap: 20px;
+  position: relative;
+}
+
+.CV .div-3 {
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .div-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  flex: 0 0 auto;
+  background-color: var(--style-guide-color-primary-500);
+  flex-direction: column;
+  position: relative;
+}
+
+.CV .text-wrapper-3 {
+  width: fit-content;
+  margin-top: -2px;
+  font-family: var(--body-semibold-semibold-7-font-family);
+  font-weight: var(--body-semibold-semibold-7-font-weight);
+  color: var(--style-guide-color-light-dark-50);
+  font-size: var(--body-semibold-semibold-7-font-size);
+  line-height: var(--body-semibold-semibold-7-line-height);
+  white-space: nowrap;
+  position: relative;
+  letter-spacing: var(--body-semibold-semibold-7-letter-spacing);
+  font-style: var(--body-semibold-semibold-7-font-style);
+}
+
+.CV .skills {
+  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .text-wrapper-4 {
+  align-self: stretch;
+  margin-top: -1px;
+  font-family: "Montserrat-Medium", Helvetica;
+  font-weight: 500;
+  color: var(--style-guide-color-light-dark-50);
+  font-size: 9px;
+  line-height: 10.8px;
+  position: relative;
+  letter-spacing: 0;
+}
+
+.CV .text-wrapper-5 {
+  align-self: stretch;
+  font-family: "Montserrat-Medium", Helvetica;
+  font-weight: 500;
+  color: var(--style-guide-color-light-dark-50);
+  font-size: 9px;
+  line-height: 10.8px;
+  position: relative;
+  letter-spacing: 0;
+}
+
+.CV .div-4 {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+  flex-direction: column;
+  position: relative;
+}
+
+.CV .text-wrapper-6 {
+  position: relative;
+  width: fit-content;
+  margin-top: -2px;
+  font-family: "Montserrat-Medium", Helvetica;
+  font-weight: 500;
+  color: var(--style-guide-color-light-dark-50);
+  font-size: 9px;
+  letter-spacing: 0;
+  line-height: 10.8px;
+  white-space: nowrap;
+}
+
+.CV .divider {
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .divider-2 {
+  margin-right: -10px;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .main-info {
+  display: flex;
+  flex-direction: column;
+  width: 343px;
+  gap: 20px;
+  align-items: flex-start;
+  position: relative;
+}
+
+.CV .list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .div-5 {
+  justify-content: space-between;
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .company {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.CV .text-wrapper-7 {
+  position: relative;
+  width: fit-content;
+  margin-top: -0.5px;
+  font-family: var(--body-semibold-semibold-8-font-family);
+  font-weight: var(--body-semibold-semibold-8-font-weight);
+  color: var(--style-guide-color-light-dark-700);
+  font-size: var(--body-semibold-semibold-8-font-size);
+  letter-spacing: var(--body-semibold-semibold-8-letter-spacing);
+  line-height: var(--body-semibold-semibold-8-line-height);
+  white-space: nowrap;
+  font-style: var(--body-semibold-semibold-8-font-style);
+}
+
+.CV .text-wrapper-8 {
+  width: fit-content;
+  font-family: "Montserrat-Regular", Helvetica;
+  font-weight: 400;
+  color: var(--style-guide-color-light-dark-600);
+  font-size: 8px;
+  line-height: 9.6px;
+  white-space: nowrap;
+  position: relative;
+  letter-spacing: 0;
+}
+
+.CV .text-wrapper-9 {
+  width: fit-content;
+  margin-top: -0.5px;
+  font-family: "Montserrat-Medium", Helvetica;
+  font-weight: 500;
+  color: var(--style-guide-color-primary-500);
+  font-size: 8px;
+  line-height: 9.6px;
+  white-space: nowrap;
+  position: relative;
+  letter-spacing: 0;
+}
+
+.CV .text-wrapper-10 {
+  position: relative;
+  align-self: stretch;
+  font-family: "Montserrat-Medium", Helvetica;
+  font-weight: 500;
+  color: var(--style-guide-color-light-dark-800);
+  font-size: 8px;
+  letter-spacing: 0;
+  line-height: 9.6px;
+}
+
+.CV .text-wrapper-11 {
+  position: relative;
+  align-self: stretch;
+  font-family: "Montserrat-Regular", Helvetica;
+  font-weight: 400;
+  color: var(--style-guide-color-light-dark-600);
+  font-size: 8px;
+  letter-spacing: 0;
+  line-height: 9.6px;
+}
+
+.CV .divider-3 {
+  margin-left: -0.5px;
+  margin-right: -0.5px;
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.CV .logos {
+  position: absolute;
+  width: 595px;
+  height: 28px;
+  top: 0;
+  left: 0;
+}
+
+.CV .overlap-group {
+  position: relative;
+  height: 28px;
+}
+
+.CV .logos-2 {
+  position: absolute;
+  width: 595px;
+  height: 28px;
+  top: 0;
+  left: 0;
+  background-color: var(--style-guide-color-primary-50);
+}
+
+.CV .logo {
+  position: absolute;
+  width: 118px;
+  height: 12px;
+  top: 8px;
+  left: 20px;
+}
+
+.CV .logos-3 {
+  position: absolute;
+  width: 69px;
+  height: 12px;
+  top: 8px;
+  left: 506px;
+}
