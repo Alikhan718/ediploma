@@ -397,5 +397,5 @@ for i in range(len(names_kaz)):
     # break
 
 fullMetadata += "]"
-with open("fullMetadata.json", "w", encoding="utf-8") as f:
+with open("storage/fullMetadata.json", "w", encoding="utf-8") as f:
     f.write(fullMetadata)

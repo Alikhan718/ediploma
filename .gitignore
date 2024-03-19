@@ -1,5 +1,13 @@
-
+.idea
 .idea/ediploma.iml
 .idea/misc.xml
 .idea/modules.xml
 .idea/vcs.xml
+Lib
+Scripts
+pyvenv.cfg
+generator/diplo/json
+generator/diplo/storage
+*.jpeg
+
+generator/diplo/__pycache__
