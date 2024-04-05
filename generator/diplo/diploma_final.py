@@ -504,7 +504,7 @@ def parseData(file, university_id):
         with_distinctions_rus.append(row[16])
         with_distinctions_eng.append(row[17])
         # additional data for analysis
-        iin.append(row[18]) 
+        iin.append(row[18])
         phone.append(row[19])
         email.append(row[20])
         gpa.append(row[21])
@@ -745,6 +745,14 @@ def uploadToNFT(university_id, file_directory="storage/images/"):
 @app.route("/nft/generate/<university_id>", methods=["GET"])
 def generateIPFS(university_id):
     # Upload images
+    if int(university_id) == 3:
+        return {
+            "cid": "bafybeig4qul4g6ppqg6wky2uedzorqpkuob5444xvwr7432gurw47u3bbi",
+            "university_id": university_id,
+            "name": "SUTEST",
+            "symbol": "SU23"
+        }, 200
+
     imagesCid = uploadToNFT(university_id, "storage/images/")
     print(f"Uploaded images: {imagesCid}")
 
@@ -763,7 +771,12 @@ def generateIPFS(university_id):
     diplomaSave(metaDataCid, university_id)
     print(f"Inserted diplomas to database ")
 
-    return metaDataCid, 200
+    return {
+            "cid": metaDataCid,
+            "university_id": university_id,
+            "name": "KBTU",
+            "symbol": "KBTU24"
+        }, 200
 
 
 @app.route("/123/<university_id>/<cid>", methods=["GET"])
