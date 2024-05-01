@@ -2,9 +2,10 @@
 
 import hashlib
 import os
+import platform
+import random
 import re
-import shutil
-import stat
+import string
 import textwrap
 import warnings
 import zipfile
@@ -17,6 +18,11 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from flask import Flask, send_file, request
 from flask_cors import CORS
+
+users = []
+progresses = {}
+# base_url = "http://127.0.0.1:5000"
+base_url = "http://generator.ediploma.kz"
 
 
 def zip_folder(folder_path, zip_path):
@@ -745,38 +751,47 @@ def uploadToNFT(university_id, file_directory="storage/images/"):
 @app.route("/nft/generate/<university_id>", methods=["GET"])
 def generateIPFS(university_id):
     # Upload images
-    if int(university_id) == 3:
-        return {
-            "cid": "bafybeig4qul4g6ppqg6wky2uedzorqpkuob5444xvwr7432gurw47u3bbi",
-            "university_id": university_id,
-            "name": "SUTEST",
-            "symbol": "SU23"
-        }, 200
+    if int(university_id) < 3:
+        imagesCid = uploadToNFT(university_id, "storage/images/")
+        print(f"Uploaded images: {imagesCid}")
 
-    imagesCid = uploadToNFT(university_id, "storage/images/")
-    print(f"Uploaded images: {imagesCid}")
+        # Update metadata with the image CID
+        updateMetaData(university_id, imagesCid)
 
-    # Update metadata with the image CID
-    updateMetaData(university_id, imagesCid)
+        # Upload metadata
+        metaDataCid = uploadToNFT(university_id, "storage/jsons/")
+    else:
+        try:
+            connection, cursor = connectDatabase()
+            cursor.execute(
+                "SELECT university_id, hash, id from diploma_generations where finished_at is null order by id desc")
 
-    # Upload metadata
-    metaDataCid = uploadToNFT(university_id, "storage/jsons/")
+            diploma_generations_record = cursor.fetchone()
+            if not diploma_generations_record:
+                return {"error": "Error uploading to IPFS"}, 500
+            metadata_hash = diploma_generations_record[1]
+
+            # Upload metadata
+            metaDataCid = uploadToNFT(metadata_hash, "storage/jsons/")
+        except Exception as e:
+            print(e)
+            return {"error": "Error uploading to IPFS"}, 500
     print(f"Uploaded metadata: {metaDataCid}")
 
     # Save metadata CID
     saveMetaDataCid(university_id, metaDataCid)
     print(f"CID saved: {metaDataCid}")
-
-    # Save diploma
-    diplomaSave(metaDataCid, university_id)
-    print(f"Inserted diplomas to database ")
+    if int(university_id) < 3:
+        # Save diploma
+        diplomaSave(metaDataCid, university_id)
+        print(f"Inserted diplomas to database ")
 
     return {
-            "cid": metaDataCid,
-            "university_id": university_id,
-            "name": "KBTU",
-            "symbol": "KBTU24"
-        }, 200
+        "cid": metaDataCid,
+        "university_id": university_id,
+        "name": "KBTU",
+        "symbol": "KBTU24"
+    }, 200
 
 
 @app.route("/123/<university_id>/<cid>", methods=["GET"])
@@ -931,16 +946,60 @@ def removeFolder(folder_path):
         print(f"Error: {e}")
 
 
+def run_python_file_in_background(file_path):
+    if platform.system() == 'Windows':
+        print('start cmd /c python "{}"'.format(file_path))
+        os.system('start cmd /c python "{}"'.format(file_path))
+    elif platform.system() == 'Linux':
+        print('nohup python3 {} &'.format(file_path))
+        os.system('nohup python3 {} &'.format(file_path))
+    else:
+        print("Unsupported operating system")
+
+
+def generate_random_string(length):
+    letters = string.ascii_letters
+    return ''.join(random.choice(letters) for i in range(length))
+
+
 @app.route('/data/parse', methods=['GET', "POST"])
 def upload():
     if request.method == 'POST':
         # check if the post request has the file part
-        if 'file' not in request.files:
+        if 'file' not in request.files \
+                and 'type' in request.values \
+                and request.form.get('type') != 'api':
             return {'error': 'File required'}
         if 'university_id' not in request.values:
             return {'error': 'No university ID'}
 
         university_id = request.form.get('university_id')
+        generationType = request.form.get('type')
+        if int(university_id) < 3 and generationType == 'api':
+            return None
+        if int(university_id) >= 3:
+            try:
+                connection, cursor = connectDatabase()
+
+                cursor.execute("SELECT id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null", (university_id,))
+                existing_record = cursor.fetchone()
+
+                if existing_record:
+                    # If the record exists, return link to future archive
+                    generation_hash = existing_record[1]
+                    return f"{base_url}/get-file/archives/{generation_hash}.zip"
+                else:
+                    generation_hash = generate_random_string(8)
+                    cursor.execute(
+                        "INSERT into diploma_generations(hash, university_id, progress, max_progress) values (%s, %s, 0, -1)",
+                        (generation_hash, university_id,)
+                    )
+                    connection.commit()
+                    run_python_file_in_background("/var/www/generator/diploma_satpaev.py")
+                    return f"{base_url}/get-file/archives/{generation_hash}.zip"
+
+            except Exception as e:
+                print(e)
         try:
             images_folder = f"storage/images/{university_id}"
             archive_folder = f"storage/archives"

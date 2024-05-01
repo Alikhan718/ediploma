@@ -3,8 +3,8 @@
 import base64
 import io
 import os
-import re
-import textwrap
+import random
+import string
 import warnings
 import zipfile
 from datetime import datetime
@@ -15,6 +15,7 @@ import psycopg2
 import qrcode
 import requests
 from PIL import Image, ImageDraw, ImageFont
+import bcrypt
 
 # Suppress DeprecationWarning for ANTIALIAS in Pillow
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -32,6 +33,21 @@ font2 = ImageFont.truetype('./kztimesnewroman.ttf', size=42)
 font3 = ImageFont.truetype('./Inconsolata-Medium.ttf', size=50)
 font4 = ImageFont.truetype('./Alice-Regular.ttf', size=22)
 font5 = ImageFont.truetype('./Alice-Regular.ttf', size=22)  # 2a4a62
+
+base_url = 'https://generator.ediploma.kz'
+
+
+def generate_random_string(length):
+    letters = string.ascii_letters
+    return ''.join(random.choice(letters) for i in range(length))
+
+
+def hash_password(password):
+    # Generate salt
+    salt = bcrypt.gensalt(10)
+    # Hash password with the generated salt
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed_password
 
 
 def generateHash(text):
@@ -121,7 +137,7 @@ def wrapTextToArr(text, maxSymbols=40):
     return lines
 
 
-def generateSatpaevDiplomaImageEn(graduate, counter, university_id, type="Regular"):
+def generateSatpaevDiplomaImageEn(graduate, counter, university_id, metadata_hash, type="Regular"):
     font2 = ImageFont.truetype('./kztimesnewroman.ttf', size=35)
     font3 = ImageFont.truetype('./DecorNormal.kz.ttf', size=40)
     font3L = ImageFont.truetype('./DecorNormal.kz.ttf', size=60)
@@ -286,13 +302,12 @@ def generateSatpaevDiplomaImageEn(graduate, counter, university_id, type="Regula
         margin = int(diploma.width * (2.18 / 23))
         qr_pos = (diploma.width - 530 - margin, diploma.height - 943 - margin)
         diploma.paste(img_qr, qr_pos)
-    createFolderIfNotExists(f'./storage/images/{university_id}')
+    createFolderIfNotExists(f'./storage/images/{metadata_hash}')
     diploma = diploma.resize((int(diploma.width), int(diploma.height)))
-    diploma.save(f'./storage/images/{university_id}/{graduate["name_en"].replace(" ", "_")}_en.webp', 'webp',
-                 optimize=True, quality=15)
+    diploma.save(f'./storage/images/{metadata_hash}/{graduate["name_en"].replace(" ", "_")}_en.jpeg', 'jpeg')
 
 
-def generateSatpaevDiplomaImageRuKz(graduate, counter, university_id, type="Regular"):
+def generateSatpaevDiplomaImageRuKz(graduate, counter, university_id, metadata_hash, type="Regular"):
     font2 = ImageFont.truetype('./kztimesnewroman.ttf', size=35)
     font3 = ImageFont.truetype('./DecorNormal.kz.ttf', size=35)
 
@@ -639,10 +654,9 @@ def generateSatpaevDiplomaImageRuKz(graduate, counter, university_id, type="Regu
         margin = int(diploma.width * (2.07 / 23))
         qr_pos = (diploma.width - 200 - margin, diploma.height - 550 - margin)
         diploma.paste(img_qr, qr_pos)
-    createFolderIfNotExists(f'./storage/images/{university_id}')
+    createFolderIfNotExists(f'./storage/images/{metadata_hash}')
     diploma = diploma.resize((int(diploma.width), int(diploma.height)))
-    diploma.save(f'./storage/images/{university_id}/{graduate["name_en"].replace(" ", "_")}_kz_ru.webp', 'webp',
-                 optimize=True, quality=15)
+    diploma.save(f'./storage/images/{metadata_hash}/{graduate["name_en"].replace(" ", "_")}_kz_ru.jpeg', 'jpeg')
 
 
 def grade_to_gpa(grade):
@@ -725,23 +739,50 @@ def zip_folder(folder_path, zip_path):
                 zipf.write(file_path, arcname=arcname)
 
 
-def parseFromApi(university_id=4):
+def parseFromApi():
     connection, cursor = connectDatabase()
     # if connection is None or cursor is None:
     #     return {"error": "Error connecting to the database."}
     # else:
     #     createTableIfNotExists(cursor)
     url = "https://extapi.satbayev.university/diploma/1.0.1/getAll"
-    fullMetadata = "["
-    # n = 73
-    n = 1
-    for i in range(n):
-        # for i in range(73):
-        # for i in range(73):
+    n = 73
+    # n = 1
+    if connection is None or cursor is None:
+        print("Error connecting to the database.")
+
+    cursor.execute("SELECT iin FROM diplomas")
+    existing_records = cursor.fetchall()
+    iins = []
+
+    if existing_records:
+        for record in existing_records:
+            iins.append(record[0])
+
+    cursor.execute("SELECT university_id, hash, id from diploma_generations"
+                   " where finished_at is null order by id desc")
+
+    diploma_generations_record = cursor.fetchone()
+    if not diploma_generations_record:
+        return
+    university_id = diploma_generations_record[0]
+    metadata_hash = diploma_generations_record[1]
+    generation_id = diploma_generations_record[2]
+
+    print(university_id)
+
+    items = []
+    # for i in range(73):
+    for i in range(1, n):
+        cursor.execute(
+            f"UPDATE diploma_generations SET info_fetch_progress = {int(((i + 1) / n) * 100)} where id = {generation_id}")
+        connection.commit()
+
         res = requests.post(url=url, headers={"Authorization": "Basic ZGlwbG9tYV9uZnQ6RGQxMjM0NTY="}, timeout=60, json={
             "PageId": i
         })
         if res.status_code == 200:
+            print(i)
             body = json.loads(res.content)["result"]["items"]
             for item in body:
                 if item["Status"] == "Graduated":
@@ -769,6 +810,7 @@ def parseFromApi(university_id=4):
                         "with_honor": False if item["WithHonor"] == "N" else True,
                         "protocol": item['Protocol'],
                         "year": item["Protocol"]["Date"],
+                        "year_number": item['Protocol']['Year'],
                         "protocol_number": item["Protocol"]["Number"],
 
                         "education_type": item["EducationType"],
@@ -778,61 +820,43 @@ def parseFromApi(university_id=4):
                         "qr_base64": item["QRBase64"],
                         "diploma": item['Diploma'],
                     }
-                    print(jsonItem['name_en'])
-                    generateSatpaevDiplomaImageEn(jsonItem, 1, 3)
-                    generateSatpaevDiplomaImageRuKz(jsonItem, 1, 3)
+                    iin = f"{item['IIN']}"
+                    if iin not in iins:
+                        items.append(jsonItem)
+                        pprint(f"NotFound {item['IIN']}")
 
-                    # metadata = jsonItem
-                    # Convert the dictionary into a JSON string
-                    # metadata_json = json.dumps(metadata, indent=4, ensure_ascii=False)
-                    # fullMetadata += metadata_json + ("" if item == body[-1] and i == n else ",")
-                    # Create a new file with the JSON data
-                    # 1 filename = f"./json/{jsonItem['name_en']}.json"
-                    # 1 with open(filename, "w", encoding="utf-8") as f:
-                    # 1 f.write(metadata_json)
-                    # break
-                    # Insert metadata into the database
-                    # try:
-                    #     iin = f"{jsonItem['iin']}"
-                    #
-                    #     shorthash = generateHash(iin)
-                    #     print("parse/ ", jsonItem['name_en'])
-                    #
-                    #     # Check if the record exists in the database
-                    #     cursor.execute("SELECT id FROM upload_diplomas WHERE hash_id = %s AND deleted_at IS NULL",
-                    #                    (shorthash,))
-                    #     existing_record = cursor.fetchone()
-                    #
-                    #     if existing_record and iin:
-                    #         # If the record exists, update it
-                    #         cursor.execute(
-                    #             "UPDATE upload_diplomas SET value = %s, university_id = %s WHERE hash_id = %s AND deleted_at IS NULL",
-                    #             (metadata_json, university_id, shorthash)
-                    #         )
-                    #     else:
-                    #         cursor.execute(
-                    #             "INSERT INTO upload_diplomas (value, university_id, hash_id) VALUES (%s, %s, %s)",
-                    #             (metadata_json, university_id, shorthash)
-                    #         )
-                    #     connection.commit()
-                    # except psycopg2.Error as e:
-                    #     print("Error inserting data into the database:", e)
-    fullMetadata += "]"
-    createFolderIfNotExists(f"storage/jsons/{university_id}")
-    with open(f"storage/jsons/{university_id}/fullMetadata.json", "w", encoding="utf-8") as f:
-        f.write(fullMetadata)
-    try:
-        # createFolderIfNotExists(f"storage/archives")
-        # zip_folder(folder_path=f"storage/images/{university_id}", zip_path=f"storage/archives/{university_id}.zip")
-        return f"http://generator.ediploma.kz/get-file/archives/{university_id}.zip"
-    except Exception as e:
-        return {"error": str(e)}, 500
+    cursor.execute(
+        f"UPDATE diploma_generations SET progress = 0, max_progress = {len(items)} {', finished_at = NOW()' if len(items) == 0 else ''} where id = {generation_id}")
+    connection.commit()
+    if len(items):
+
+        fullMetadata = "["
+        counter = 1
+        for item in items:
+            metadata_json = json.dumps(item, indent=4, ensure_ascii=False)
+            fullMetadata += metadata_json + ("" if item == items[-1] else ",")
+            generateSatpaevDiplomaImageEn(item, 1, 3, metadata_hash)
+            generateSatpaevDiplomaImageRuKz(item, 1, 3, metadata_hash)
+            diplomaSave(university_id, metadata_hash, item, counter)
+
+            counter += 1
+        fullMetadata += "]"
+        createFolderIfNotExists(f"storage/jsons/{metadata_hash}")
+        with open(f"storage/jsons/{metadata_hash}/fullMetadata.json", "w", encoding="utf-8") as f:
+            f.write(fullMetadata)
+        try:
+            createFolderIfNotExists(f"storage/archives")
+            zip_folder(folder_path=f"storage/images/{metadata_hash}", zip_path=f"storage/archives/{metadata_hash}.zip")
+            return f"{base_url}/get-file/archives/{metadata_hash}.zip"
+        except Exception as e:
+            return {"error": str(e)}, 500
 
 
-def diplomaSave(university_id):
-    f = open(f'./storage/jsons/{university_id}/fullMetadata-refactored.json', 'r')
+def diplomaSave(university_id, metadata_hash, item, counter):
+    # f = open(f'./storage/jsons/{metadata_hash}/fullMetadata.json', 'r')
+    connection, cursor = connectDatabase()
 
-    body = json.loads(f.read())
+    # body = json.loads(f.read())
 
     ignoreAttr = [
         "name_en",
@@ -849,84 +873,115 @@ def diplomaSave(university_id):
         "study_direction",
         "year",
     ]
-    connection, cursor = connectDatabase()
     flag = False
-    for item in body:
 
-        # if not flag and item['name_en'] == 'Nurzhigitova Alina':
-        #     flag = True
-        # if not flag:
-        #     print(item['name_en'])
-        #     continue
+    image = f"https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(item['name_en'].split(" ")) + f"_kz_ru.jpeg, https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(item['name_en'].split(" ")) + "_en.jpeg"
+    data = {}
+    contentFields = {}
+    attributes = item
 
-        data = {'image': "https://generator.ediploma.kz/get-file/images/3/" + "_".join(
-            item['name_en'].split(" ")) + "_kz_ru.jpeg, https://generator.ediploma.kz/get-file/images/3/" + "_".join(
-            item['name_en'].split(" ")) + "_en.jpeg"}
+    if item["diploma"]["Number"]:
+        contentFields['Number'] = item["diploma"]["Number"]
 
-        contentFields = {}
-        attributes = item
+    data['year'] = item['diploma']['Issue']['Year']
+    for key, value in attributes.items():
+        if key == 'number':
+            continue
 
-        if item["diploma"]["Number"]:
-            contentFields['Number'] = item["diploma"]["Number"]
-
-        data['year'] = item['diploma']['Issue']['Year']
-        for key, value in attributes.items():
-            if key == 'number':
-                continue
-
-            if key in ignoreAttr:
-                data[key] = value
-            else:
-                contentFields[key] = value
-
-        # Construct and execute the SQL query to insert data into
-        # the database
-        iin = item['iin']
-        print(iin)
-        query = (
-            f"select id from diplomas where iin = '{iin}'"
-        )
-
-        cursor.execute(query)
-
-        # Retrieve the ID of the inserted record
-        diploma_id = cursor.fetchone()
-        if not diploma_id:
-            query = (
-                "INSERT INTO diplomas("
-                "name_en, name_ru, name_kz, university_id, year, "
-                "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility"
-                ") "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
-                "RETURNING id"
-            )
-            values = (
-                item["name_en"], item["name_ru"], item["name_kz"],
-                university_id, data["year"],
-                item["speciality_en"], item["speciality_ru"],
-                item["speciality_kz"],
-                data["image"],
-                item["gpa"],
-                item["iin"],
-                False,
-            )
-            cursor.execute(query, values)
-            diploma_id = cursor.fetchone()[0]
+        if key in ignoreAttr:
+            data[key] = value
         else:
-            diploma_id = diploma_id[0]
-        connection.commit()
-        # inserting additional fields
-        for key, val in contentFields.items():
-            query = (
-                "INSERT INTO content_fields(type, value, content_id) "
-                "VALUES (%s, %s, %s)"
-            )
-            val = json.dumps(val, ensure_ascii=False) if isinstance(val, dict) else val
-            values = ("diploma_" + key, json.dumps(val, ensure_ascii=False), diploma_id)
-            cursor.execute(query, values)
+            contentFields[key] = value
 
-        connection.commit()
+    # Construct and execute the SQL query to insert data into
+    # the database
+
+    # create user start
+    nameArr = item["name_kz"].split(" ")
+    first_name = nameArr[0]
+    last_name = nameArr[1]
+    middle_name = nameArr[2] if len(nameArr) > 2 else ""
+    password = generate_random_string(8)
+    # password = "12345"
+    hashed_password = hash_password(password).decode('utf-8')
+    email = item['email'] if len(item['email']) else f"{'_'.join(nameArr)}@jasaim.kz"
+    print(email, password)
+    query = (
+        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    cursor.execute(query,
+                   (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 2, True))
+    file_path = f'storage/jsons/{university_id}/users.json'
+    new_value = {
+        "name": item["name_kz"],
+        "email": email,
+        "password": password,
+    }
+    if os.path.exists(file_path):
+        # Open file and read contents
+        with open(file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            # Add new value to array
+            data.append(new_value)
+        # Write updated data back to file
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(data, file, ensure_ascii=False, indent=4)
+    else:
+        createFolderIfNotExists(f'storage/jsons/{university_id}')
+        # Create file and set empty array with new value
+        with open(file_path, 'w') as file:
+            json.dump([new_value], file, ensure_ascii=False, indent=4)
+    user_id = cursor.fetchone()[0]
+    # create user end
+
+    iin = item['iin']
+    print(iin)
+    query = (f"select id from diplomas where iin = '{iin}'")
+
+    cursor.execute(query)
+    # Retrieve the ID of the inserted record
+    diploma_id = cursor.fetchone()
+    if not diploma_id:
+        query = (
+            "INSERT INTO diplomas("
+            "name_en, name_ru, name_kz, university_id, year, "
+            "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
+            ") "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+            "RETURNING id"
+        )
+        values = (
+            item["name_en"], item["name_ru"], item["name_kz"],
+            university_id, item["year_number"],
+            item["speciality_en"], item["speciality_ru"],
+            item["speciality_kz"],
+            image,
+            item["gpa"],
+            item["iin"],
+            False,
+            user_id
+        )
+        cursor.execute(query, values)
+        diploma_id = cursor.fetchone()[0]
+    else:
+        diploma_id = diploma_id[0]
+    connection.commit()
+    # inserting additional fields
+    for key, val in contentFields.items():
+        query = (
+            "INSERT INTO content_fields(type, value, content_id) "
+            "VALUES (%s, %s, %s)"
+        )
+        val = json.dumps(val, ensure_ascii=False) if isinstance(val, dict) else val
+        values = ("diploma_" + key, json.dumps(val, ensure_ascii=False), diploma_id)
+        cursor.execute(query, values)
+
+    # connection.commit()
+    print(f"Counter: {counter}")
+    cursor.execute(f"UPDATE diploma_generations SET progress = {counter} where hash = '{metadata_hash}'")
+    connection.commit()
 
 
 parseFromApi()
-# diplomaSave(3)
