@@ -5,6 +5,7 @@ import io
 import os
 import random
 import string
+import time
 import warnings
 import zipfile
 from datetime import datetime
@@ -304,7 +305,7 @@ def generateSatpaevDiplomaImageEn(graduate, counter, university_id, metadata_has
         diploma.paste(img_qr, qr_pos)
     createFolderIfNotExists(f'./storage/images/{metadata_hash}')
     diploma = diploma.resize((int(diploma.width), int(diploma.height)))
-    diploma.save(f'./storage/images/{metadata_hash}/{graduate["name_en"].replace(" ", "_")}_en.jpeg', 'jpeg')
+    diploma.save(f'./storage/images/{metadata_hash}/{graduate["name_en"].replace(" ", "_")}_{str(graduate["iin"])[-2:]}_en.jpeg', 'jpeg')
 
 
 def generateSatpaevDiplomaImageRuKz(graduate, counter, university_id, metadata_hash, type="Regular"):
@@ -656,7 +657,7 @@ def generateSatpaevDiplomaImageRuKz(graduate, counter, university_id, metadata_h
         diploma.paste(img_qr, qr_pos)
     createFolderIfNotExists(f'./storage/images/{metadata_hash}')
     diploma = diploma.resize((int(diploma.width), int(diploma.height)))
-    diploma.save(f'./storage/images/{metadata_hash}/{graduate["name_en"].replace(" ", "_")}_kz_ru.jpeg', 'jpeg')
+    diploma.save(f'./storage/images/{metadata_hash}/{graduate["name_en"].replace(" ", "_")}_{str(graduate["iin"])[-2:]}_kz_ru.jpeg', 'jpeg')
 
 
 def grade_to_gpa(grade):
@@ -730,6 +731,9 @@ def connectDatabase():
         return None, None
 
 
+connection, cursor = connectDatabase()
+
+
 def zip_folder(folder_path, zip_path):
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(folder_path):
@@ -740,7 +744,6 @@ def zip_folder(folder_path, zip_path):
 
 
 def parseFromApi():
-    connection, cursor = connectDatabase()
     # if connection is None or cursor is None:
     #     return {"error": "Error connecting to the database."}
     # else:
@@ -751,13 +754,7 @@ def parseFromApi():
     if connection is None or cursor is None:
         print("Error connecting to the database.")
 
-    cursor.execute("SELECT iin FROM diplomas")
-    existing_records = cursor.fetchall()
-    iins = []
 
-    if existing_records:
-        for record in existing_records:
-            iins.append(record[0])
 
     cursor.execute("SELECT university_id, hash, id from diploma_generations"
                    " where finished_at is null order by id desc")
@@ -769,11 +766,19 @@ def parseFromApi():
     metadata_hash = diploma_generations_record[1]
     generation_id = diploma_generations_record[2]
 
+    cursor.execute(f"SELECT iin FROM diplomas where university_id = {university_id}")
+    existing_records = cursor.fetchall()
+    iins = []
+
+    if existing_records:
+        for record in existing_records:
+            iins.append(record[0])
+
     print(university_id)
 
-    items = []
-    # for i in range(73):
-    for i in range(1, n):
+    diplomas = []
+    # for i in range(0, 1):
+    for i in range(0, n):
         cursor.execute(
             f"UPDATE diploma_generations SET info_fetch_progress = {int(((i + 1) / n) * 100)} where id = {generation_id}")
         connection.commit()
@@ -822,24 +827,27 @@ def parseFromApi():
                     }
                     iin = f"{item['IIN']}"
                     if iin not in iins:
-                        items.append(jsonItem)
+                        iins.append(iin)
+                        diplomas.append(jsonItem)
                         pprint(f"NotFound {item['IIN']}")
 
     cursor.execute(
-        f"UPDATE diploma_generations SET progress = 0, max_progress = {len(items)} {', finished_at = NOW()' if len(items) == 0 else ''} where id = {generation_id}")
+        f"UPDATE diploma_generations SET progress = 0, max_progress = {len(diplomas)} {', finished_at = NOW()' if len(diplomas) == 0 else ''} where id = {generation_id}")
     connection.commit()
-    if len(items):
-
+    if len(diplomas):
         fullMetadata = "["
         counter = 1
-        for item in items:
-            metadata_json = json.dumps(item, indent=4, ensure_ascii=False)
-            fullMetadata += metadata_json + ("" if item == items[-1] else ",")
-            generateSatpaevDiplomaImageEn(item, 1, 3, metadata_hash)
-            generateSatpaevDiplomaImageRuKz(item, 1, 3, metadata_hash)
-            diplomaSave(university_id, metadata_hash, item, counter)
-
-            counter += 1
+        for diploma in diplomas:
+            try:
+                counter = min(counter + 1, len(diplomas) - 1)
+                metadata_json = json.dumps(diploma, indent=4, ensure_ascii=False)
+                fullMetadata += metadata_json + ("" if diploma == diplomas[-1] else ",")
+                generateSatpaevDiplomaImageEn(diploma, 1, 3, metadata_hash)
+                generateSatpaevDiplomaImageRuKz(diploma, 1, 3, metadata_hash)
+                diplomaSave(university_id, metadata_hash, diploma, counter)
+            except Exception as e:
+                print(f"Generation loop error [{diploma['student_id']}|{diploma['name_kz']}]: {e}")
+                continue
         fullMetadata += "]"
         createFolderIfNotExists(f"storage/jsons/{metadata_hash}")
         with open(f"storage/jsons/{metadata_hash}/fullMetadata.json", "w", encoding="utf-8") as f:
@@ -847,6 +855,10 @@ def parseFromApi():
         try:
             createFolderIfNotExists(f"storage/archives")
             zip_folder(folder_path=f"storage/images/{metadata_hash}", zip_path=f"storage/archives/{metadata_hash}.zip")
+            # time.sleep(1)
+            time.sleep(60)
+            cursor.execute(f"UPDATE diploma_generations SET progress = {len(diplomas)} where hash = '{metadata_hash}'")
+            connection.commit()
             return f"{base_url}/get-file/archives/{metadata_hash}.zip"
         except Exception as e:
             return {"error": str(e)}, 500
@@ -854,7 +866,6 @@ def parseFromApi():
 
 def diplomaSave(university_id, metadata_hash, item, counter):
     # f = open(f'./storage/jsons/{metadata_hash}/fullMetadata.json', 'r')
-    connection, cursor = connectDatabase()
 
     # body = json.loads(f.read())
 
@@ -875,7 +886,9 @@ def diplomaSave(university_id, metadata_hash, item, counter):
     ]
     flag = False
 
-    image = f"https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(item['name_en'].split(" ")) + f"_kz_ru.jpeg, https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(item['name_en'].split(" ")) + "_en.jpeg"
+    image = f"https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(item['name_en'].split(
+        " ")) + f"_{str(item['iin'])[-2:]}_kz_ru.jpeg, https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(
+        item['name_en'].split(" ")) + f"_{str(item['iin'])[-2:]}_en.jpeg"
     data = {}
     contentFields = {}
     attributes = item
@@ -898,21 +911,14 @@ def diplomaSave(university_id, metadata_hash, item, counter):
 
     # create user start
     nameArr = item["name_kz"].split(" ")
-    first_name = nameArr[0]
-    last_name = nameArr[1]
+    last_name = nameArr[0]
+    first_name = nameArr[1]
     middle_name = nameArr[2] if len(nameArr) > 2 else ""
     password = generate_random_string(8)
     # password = "12345"
     hashed_password = hash_password(password).decode('utf-8')
-    email = item['email'] if len(item['email']) else f"{'_'.join(nameArr)}@jasaim.kz"
-    print(email, password)
-    query = (
-        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
-        "RETURNING id"
-    )
-    cursor.execute(query,
-                   (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 2, True))
+    email = item['email'] if (
+            'email' in item and item['email'] and len(item['email'])) else f"{'_'.join(nameArr)}@jasaim.kz"
     file_path = f'storage/jsons/{university_id}/users.json'
     new_value = {
         "name": item["name_kz"],
@@ -922,51 +928,63 @@ def diplomaSave(university_id, metadata_hash, item, counter):
     if os.path.exists(file_path):
         # Open file and read contents
         with open(file_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
+            # Check if file is empty
+            if os.stat(file_path).st_size == 0:
+                jsonData = []
+            else:
+                jsonData = json.load(file)
+
+            # Check if email exists in the array
+            for index, user in enumerate(jsonData):
+                if user["email"] == new_value["email"]:
+                    email = f"{'_'.join(nameArr)}_{counter}@jasaim.kz"
+                    new_value['email'] = email
+                    break
+
             # Add new value to array
-            data.append(new_value)
-        # Write updated data back to file
+            jsonData.append(new_value)
+
+        # Write updated jsonData back to file
         with open(file_path, 'w', encoding='utf-8') as file:
-            json.dump(data, file, ensure_ascii=False, indent=4)
+            json.dump(jsonData, file, ensure_ascii=False, indent=4)
     else:
         createFolderIfNotExists(f'storage/jsons/{university_id}')
         # Create file and set empty array with new value
         with open(file_path, 'w') as file:
             json.dump([new_value], file, ensure_ascii=False, indent=4)
+    query = (
+        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    cursor.execute(query,
+       (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3, True))
     user_id = cursor.fetchone()[0]
     # create user end
+    print(email, password)
 
-    iin = item['iin']
-    print(iin)
-    query = (f"select id from diplomas where iin = '{iin}'")
-
-    cursor.execute(query)
-    # Retrieve the ID of the inserted record
-    diploma_id = cursor.fetchone()
-    if not diploma_id:
-        query = (
-            "INSERT INTO diplomas("
-            "name_en, name_ru, name_kz, university_id, year, "
-            "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
-            ") "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
-            "RETURNING id"
-        )
-        values = (
-            item["name_en"], item["name_ru"], item["name_kz"],
-            university_id, item["year_number"],
-            item["speciality_en"], item["speciality_ru"],
-            item["speciality_kz"],
-            image,
-            item["gpa"],
-            item["iin"],
-            False,
-            user_id
-        )
-        cursor.execute(query, values)
-        diploma_id = cursor.fetchone()[0]
-    else:
-        diploma_id = diploma_id[0]
+    query = (
+        "INSERT INTO diplomas("
+        "name_en, name_ru, name_kz, university_id, year, "
+        "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
+        ") "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    pprint(item)
+    values = (
+        item["name_en"], item["name_ru"], item["name_kz"],
+        university_id, item["year_number"],
+        item["speciality_en"], item["speciality_ru"],
+        item["speciality_kz"],
+        image,
+        item["gpa"],
+        item["iin"],
+        False,
+        user_id
+    )
+    cursor.execute(query, values)
+    diploma_id = cursor.fetchone()[0]
     connection.commit()
     # inserting additional fields
     for key, val in contentFields.items():
