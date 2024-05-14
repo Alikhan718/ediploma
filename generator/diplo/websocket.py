@@ -87,15 +87,6 @@ def handle_user_join(university_id):
             # print(f"Got NOTIFY: {notify.pid}, {notify.channel}, {notify.payload}")
 
 
-@socketio.on("new_message")
-def handle_new_message(message):
-    print(f"New message: {message}")
-    username = None
-    for user in users:
-        if users[user] == request.sid:
-            username = user
-    emit("chat", {"message": message, "username": username}, broadcast=True)
-
 
 @app.route('/websocket', methods=['GET', "POST"])
 def index():
