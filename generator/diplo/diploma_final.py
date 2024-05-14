@@ -22,7 +22,7 @@ from flask_cors import CORS
 users = []
 progresses = {}
 # base_url = "http://127.0.0.1:5000"
-base_url = "http://generator.ediploma.kz"
+base_url = "https://generator.ediploma.kz"
 
 
 def zip_folder(folder_path, zip_path):
@@ -399,7 +399,7 @@ def generateDiplomaImage(graduate, counter, university_id):
     diploma.save(f'./storage/images/{university_id}/{name_file}.jpeg', 'JPEG')
     metadata = {
         "description": f"KBTU 2023 Graduate {name_file}",
-        "image": f"http://generator.ediploma.kz/get-file/{name_file}.jpeg",
+        "image": f"https://generator.ediploma.kz/get-file/{name_file}.jpeg",
         "name": name_en,
         "counter": counter,
         "attributes": [
@@ -604,7 +604,7 @@ def parseData(file, university_id):
     try:
         createFolderIfNotExists(f"storage/archives")
         zip_folder(folder_path=f"storage/images/{university_id}", zip_path=f"storage/archives/{university_id}.zip")
-        return f"http://generator.ediploma.kz/get-file/archives/{university_id}.zip"
+        return f"https://generator.ediploma.kz/get-file/archives/{university_id}.zip"
     except Exception as e:
         return {"error": str(e)}, 500
 
@@ -1108,7 +1108,7 @@ def get_image(file_path):
         return send_file(file_path)
     else:
         # Return an error message or a default image if the requested image doesn't exist
-        return "Image not found", 404
+        return "File not found", 404
 
 
 @app.route("/get-sample", methods=["GET"])
@@ -1120,13 +1120,14 @@ def get_sample_file():
         return "File not found", 404
 
 
-excluded_paths = ['storage', 'json']
+excluded_paths = ['storage', 'json', 'diploma_satpaev.py', 'websocket.py']
 
 
 def should_reload(filename):
     # Check if the file is in an excluded path
     for excluded_path in excluded_paths:
-        if filename.startswith(excluded_path):
+        print(excluded_path)
+        if filename.startswith(excluded_path) or filename.endswith(excluded_path):
             return False
     return True
 
