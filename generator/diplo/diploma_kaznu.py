@@ -1,378 +1,398 @@
-import json
-from PIL import Image, ImageDraw, ImageFont
-import qrcode
-import openpyxl
-import textwrap
+# diploma_kaznu.py
+import datetime
+import os
 import re
+import textwrap
+import uuid
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+
+import qrcode
+from PIL import Image, ImageDraw, ImageFont
+
+import json
 
 
-# Remove invalid characters
-def sanitize_filename(filename):
-    return re.sub(r'[\\/*?:"<>|\n\t]', '', filename)
+@dataclass
+class TextField:
+    """Конфигурация текстового поля"""
+    x_percent: float
+    y_percent: float
+    font_size: int = 22
+    font_path: str = "timesnewromanpsmt.ttf"
+    color: str = "black"
+    max_width: int = 120
+    align: str = "center"
+    uppercase: bool = False
 
 
-def draw_distinction_text(draw, font, part_x, part_y, text_lines, color):
-    filtered_lines = [line for line in text_lines if line != "NONE"]
-    text_width, text_height = draw.textsize('\n'.join(filtered_lines), font=font)
-    text_x = part_x - text_width // 2
-    text_y = part_y - text_height // 2
-    for line in filtered_lines:
-        line_width, line_height = draw.textsize(line, font=font)
-        line_x = text_x + (text_width - line_width) // 2  # Center-align the text
-        draw.text((line_x, text_y), line, fill=color, font=font)
-        text_y += line_height
+@dataclass
+class TemplateConfig:
+    """Конфигурация шаблона диплома"""
+    name: str
+    template_path: str
+    output_dir: str = "Diplomas"
+    fields_left: Dict[str, TextField] = field(default_factory=dict)
+    fields_right: Dict[str, TextField] = field(default_factory=dict)
+    qr_enabled: bool = True
+    qr_x_percent: float = 10.0
+    qr_y_percent: float = 80.0
+    qr_size_percent: float = 12
+    qr_base_url: str = "https://app.ediploma.kz"
 
 
-def wrap_text_with_newlines(text, width):
-    lines = []
-    for part in text.split("\n"):
-        lines.extend(textwrap.wrap(part, width=width))
-    return lines
+# ==================== КООРДИНАТЫ ПО КРАСНЫМ КВАДРАТАМ ====================
+# Изображение ~970x686 px
 
 
-# Load the Excel file
-workbook = openpyxl.load_workbook('data_bachelor_sample.xlsx')
+class DiplomaGenerator:
+    """Генератор дипломов"""
 
-sheet = workbook.active
+    def __init__(self, config: TemplateConfig):
+        self.config = config
+        self.template = Image.open(config.template_path).convert('RGBA')
+        self.width, self.height = self.template.size
+        self.fonts_cache: Dict[str, ImageFont.FreeTypeFont] = {}
 
-# Load template (supports multiple formats including WebP)
-template = Image.open('kaznu_backelor_ru_en.webp')  # или 'diploma_template.webp'
+        os.makedirs(config.output_dir, exist_ok=True)
+        os.makedirs("json", exist_ok=True)
 
-# Set the fonts
-font1 = ImageFont.truetype('miamanueva.ttf', size=30)
-font2 = ImageFont.truetype('Alice-Regular.ttf', size=23)
-font3 = ImageFont.truetype('Alice-Regular.ttf', size=15)
-font4 = ImageFont.truetype('Alice-Regular.ttf', size=22)
-font5 = ImageFont.truetype('Alice-Regular.ttf', size=22)
+    def get_font(self, font_path: str, size: int) -> ImageFont.FreeTypeFont:
+        """Получение шрифта с кэшированием"""
+        key = f"{font_path}_{size}"
+        if key not in self.fonts_cache:
+            try:
+                self.fonts_cache[key] = ImageFont.truetype(font_path, size=size)
+            except OSError:
+                print(f"Warning: Font {font_path} not found, using default")
+                self.fonts_cache[key] = ImageFont.load_default()
+        return self.fonts_cache[key]
 
-# Initialize the variables
-numbers = []
-names_kaz = []
-names_rus = []
-names_eng = []
-protocols_kaz = []
-protocols_rus = []
-protocols_eng = []
-degrees_kaz = []
-degrees_rus = []
-degrees_eng = []
-qualifications_kaz = []
-qualifications_rus = []
-qualifications_eng = []
-with_distinctions_kaz = []
-with_distinctions_rus = []
-with_distinctions_eng = []
+    def percent_to_pixels(self, x_percent: float, y_percent: float) -> Tuple[int, int]:
+        """Конвертация процентов в пиксели"""
+        x = int(self.width * x_percent / 100)
+        y = int(self.height * y_percent / 100)
+        return x, y
 
-fullMetadata = "["
-# Iterate through rows and columns starting from row 3
-for row in sheet.iter_rows(min_row=3, values_only=True):
-    numbers.append(row[0])
-    names_kaz.append(row[3])
-    names_rus.append(row[4])
-    names_eng.append(row[5])
-    protocols_kaz.append(row[6])
-    protocols_rus.append(row[7])
-    protocols_eng.append(row[8])
-    degrees_kaz.append(row[9])
-    degrees_rus.append(row[11])
-    degrees_eng.append(row[13])
-    qualifications_rus.append(row[12])
-    qualifications_kaz.append(row[10])
-    qualifications_eng.append(row[14])
-    with_distinctions_kaz.append(row[15])
-    with_distinctions_rus.append(row[16])
-    with_distinctions_eng.append(row[17])
+    def draw_text(self, draw: ImageDraw.ImageDraw, text: str, field: TextField):
+        """Отрисовка текста"""
+        if not text or text.strip() == "" or str(text).upper() == "NONE" or str(text) == "nan":
+            return
 
-# Gain all values separately
-counter = 1
-for i in range(len(names_kaz)):
-    number = str(numbers[i]).strip()
-    name_kz = str(names_kaz[i]).strip()
-    name_ru = str(names_rus[i]).strip()
-    name_en = str(names_eng[i]).strip()
-    protocol_kz = str(protocols_kaz[i]).strip().replace("№", "#")
-    protocol_ru = str(protocols_rus[i]).strip().replace("№", "#")
-    protocol_en = str(protocols_eng[i]).strip().replace("№", "#")
-    degree_kz = str(degrees_kaz[i]).upper().strip()
-    degree_ru = str(degrees_rus[i]).upper().strip()
-    degree_en = str(degrees_eng[i]).upper().strip()
-    qualification_kz = str(qualifications_kaz[i]).upper().strip()
-    qualification_ru = str(qualifications_rus[i]).upper().strip()
-    qualification_en = str(qualifications_eng[i]).upper().strip()
-    distinction_kz = str(with_distinctions_kaz[i]).upper().strip()
-    distinction_ru = str(with_distinctions_rus[i]).upper().strip()
-    distinction_en = str(with_distinctions_eng[i]).upper().strip()
+        text = str(text).strip()
+        if field.uppercase:
+            text = text.upper()
 
-    # Create a copy of the diploma template
-    diploma = template.copy().convert('RGBA')  # Используем RGBA для поддержки прозрачности в WebP
-    # Create a draw object for the diploma
-    draw = ImageDraw.Draw(diploma)
-    # Make for file name
-    name_file = f"{name_en.replace(' ', '_')}_{number}"
-    # Sanitize the filename
-    name_file = sanitize_filename(name_file)
+        font = self.get_font(field.font_path, field.font_size)
 
-    # Calculate the dimensions of each part
-    canvas_width, canvas_height = diploma.size
-    part_width = canvas_width // 3
-    part_height = canvas_height
+        # Wrap текст
+        lines = []
+        for part in text.split("\n"):
+            lines.extend(textwrap.wrap(part, width=field.max_width))
 
-    # Calculate the center coordinates for each part
-    part1_x = part_width // 2
-    part1_y = canvas_height // 2.9
+        if not lines:
+            return
 
-    part2_x = part_width + (part_width // 2)
-    part2_y = canvas_height // 2.9
+        center_x, center_y = self.percent_to_pixels(field.x_percent, field.y_percent)
 
-    part3_x = (part_width * 2) + (part_width // 2)
-    part3_y = canvas_height // 2.9
+        # Вычисляем размеры
+        line_heights = []
+        line_widths = []
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            line_widths.append(bbox[2] - bbox[0])
+            line_heights.append(bbox[3] - bbox[1])
 
-    # Define line spacing
-    line_spacing = 3
+        total_height = sum(line_heights) + (len(lines) - 1) * 3
+        max_line_width = max(line_widths) if line_widths else 0
 
-    # Wrap the text if it exceeds the line width
-    name_kz_lines = textwrap.wrap(name_kz, width=25)
-    name_ru_lines = textwrap.wrap(name_ru, width=25)
-    name_en_lines = textwrap.wrap(name_en, width=25)
+        current_y = center_y - total_height // 2
 
-    # Draw the names in the middle of each part
-    name_width_kz, name_height_kz = draw.textsize('\n'.join(name_kz_lines), font=font1)
-    name_x_kz = part1_x - name_width_kz // 2
-    name_y_kz = part1_y - (name_height_kz * len(name_kz_lines) + line_spacing * (len(name_kz_lines) - 1)) // 2
-    for line in name_kz_lines:
-        text_width, text_height = draw.textsize(line, font=font1)
-        text_x = name_x_kz + (name_width_kz - text_width) // 2
-        draw.text((text_x, name_y_kz), line, fill='#FFD700', font=font1)
-        name_y_kz += name_height_kz + line_spacing
+        for i, line in enumerate(lines):
+            line_width = line_widths[i]
+            line_height = line_heights[i]
 
-    name_width_ru, name_height_ru = draw.textsize('\n'.join(name_ru_lines), font=font1)
-    name_x_ru = part2_x - name_width_ru // 2
-    name_y_ru = part2_y - (name_height_ru * len(name_ru_lines) + line_spacing * (len(name_ru_lines) - 1)) // 2
-    for line in name_ru_lines:
-        text_width, text_height = draw.textsize(line, font=font1)
-        text_x = name_x_ru + (name_width_ru - text_width) // 2
-        draw.text((text_x, name_y_ru), line, fill='#FFD700', font=font1)
-        name_y_ru += name_height_ru + line_spacing
+            if field.align == "center":
+                line_x = center_x - line_width // 2
+            elif field.align == "left":
+                line_x = center_x
+            else:  # right
+                line_x = center_x - line_width
 
-    name_width_en, name_height_en = draw.textsize('\n'.join(name_en_lines), font=font1)
-    name_x_en = part3_x - name_width_en // 2
-    name_y_en = part3_y - (name_height_en * len(name_en_lines) + line_spacing * (len(name_en_lines) - 1)) // 2
-    for line in name_en_lines:
-        text_width, text_height = draw.textsize(line, font=font1)
-        text_x = name_x_en + (name_width_en - text_width) // 2
-        draw.text((text_x, name_y_en), line, fill='#FFD700', font=font1)
-        name_y_en += name_height_en + line_spacing
+            draw.text((line_x, current_y), line, fill=field.color, font=font)
+            current_y += line_height + 3
 
-    # Add with distinction (only if not empty)
-    if distinction_ru is not None and distinction_ru.strip() != "":
-        part1_y = canvas_height * 8.5 // 14
-        part2_y = canvas_height * 8.5 // 14
-        part3_y = canvas_height * 8.5 // 14
+    def add_qr_code(self, diploma: Image.Image, data: str):
+        """Добавление QR кода"""
+        if not self.config.qr_enabled:
+            return
 
-        distinction_kz_lines = textwrap.wrap(distinction_kz, width=20)
-        distinction_ru_lines = textwrap.wrap(distinction_ru, width=20)
-        distinction_en_lines = textwrap.wrap(distinction_en, width=20)
+        qr_size = int(self.width * self.config.qr_size_percent / 100)
 
-        draw_distinction_text(draw, font2, part1_x, part1_y, distinction_kz_lines, '#5c92c7')
-        draw_distinction_text(draw, font2, part2_x, part2_y, distinction_ru_lines, '#5c92c7')
-        draw_distinction_text(draw, font2, part3_x, part3_y, distinction_en_lines, '#5c92c7')
+        qr = qrcode.QRCode(box_size=1)
+        qr.add_data(data)
+        qr.make(fit=True)
 
-    # Qualifications
-    part1_y = canvas_height // 2.5
-    part2_y = canvas_height // 2.5
-    part3_y = canvas_height // 2.5
+        qr_image = qr.make_image(fill_color="black", back_color="white")
+        qr_image = qr_image.resize((qr_size, qr_size), Image.LANCZOS)
 
-    degree_color = "#2a4a62"
-    qualification_color = "#5c92c7"
+        qr_x, qr_y = self.percent_to_pixels(self.config.qr_x_percent, self.config.qr_y_percent)
+        qr_x -= qr_size // 2
+        qr_y -= qr_size // 2
 
-    # Combine the degree and qualification text
-    qualification_kz = qualification_kz + "\n" + degree_kz
-    qualification_ru = degree_ru + "\n" + qualification_ru
-    qualification_en = degree_en + "\n" + qualification_en
+        diploma.paste(qr_image, (qr_x, qr_y))
 
-    qualification_kz_lines = wrap_text_with_newlines(qualification_kz, width=35)
-    qualification_ru_lines = wrap_text_with_newlines(qualification_ru, width=35)
-    qualification_en_lines = wrap_text_with_newlines(qualification_en, width=35)
+    def sanitize_filename(self, filename: str) -> str:
+        """Очистка имени файла"""
+        return re.sub(r'[\\/*?:"<>|\n\t]', '', filename)
 
-    # Draw the text for the Kazakh language
-    y = part1_y
-    for line in qualification_kz_lines:
-        if line.strip() == degree_kz.strip():
-            color = degree_color
-        else:
-            color = qualification_color
-        text_width, text_height = draw.textsize(line, font=font2)
-        text_x = part1_x - text_width // 2
-        draw.text((text_x, y), line, fill=color, font=font2)
-        y += text_height
+    def parse_protocol_date(self, protocol_str: str) -> dict:
+        """
+        Парсинг строки протокола: "27.09.2025 №1" -> {day, month, year, number}
+        """
+        result = {"day": "", "month": "", "year": "", "number": ""}
 
-    # Draw the text for the Russian language
-    y = part2_y
-    for line in qualification_ru_lines:
-        if line.strip() == degree_ru.strip():
-            color = degree_color
-        else:
-            color = qualification_color
-        text_width, text_height = draw.textsize(line, font=font2)
-        text_x = part2_x - text_width // 2
-        draw.text((text_x, y), line, fill=color, font=font2)
-        y += text_height
+        if not protocol_str:
+            return result
 
-    # Draw the text for the English language
-    y = part3_y
-    for line in qualification_en_lines:
-        if line.strip() == degree_en.strip():
-            color = degree_color
-        else:
-            color = qualification_color
-        text_width, text_height = draw.textsize(line, font=font2)
-        text_x = part3_x - text_width // 2
-        draw.text((text_x, y), line, fill=color, font=font2)
-        y += text_height
+        protocol_str = str(protocol_str).strip()
 
-    # Protocols
-    part1_y = canvas_height // 4.2
-    part2_y = canvas_height // 4.2
-    part3_y = canvas_height // 4.2
+        # Ищем номер протокола
+        number_match = protocol_str.split(' №')[-1]
+        if number_match:
+            result["number"] = number_match
 
-    protocol_kz_lines = textwrap.wrap(protocol_kz, width=45)
-    protocol_ru_lines = textwrap.wrap(protocol_ru, width=35)
-    protocol_en_lines = textwrap.wrap(protocol_en, width=35)
+        # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
+        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
+        if date_match:
+            result["day"] = date_match.group(1)
+            result["month"] = self._month_to_name(date_match.group(2), "ru")
+            result["year"] = date_match.group(3)
 
-    protocol_width_kz, protocol_height_kz = draw.textsize('\n'.join(protocol_kz_lines), font=font4)
-    protocol_x_kz = part1_x - protocol_width_kz // 2
-    protocol_y_kz = part1_y - protocol_height_kz // 2
-    for line in protocol_kz_lines:
-        text_width, text_height = draw.textsize(line, font=font4)
-        text_x = protocol_x_kz + (protocol_width_kz - text_width) // 2
-        draw.text((text_x, protocol_y_kz), line, fill='#5c92c7', font=font4)
-        protocol_y_kz += protocol_height_kz + 2
+        return result
 
-    protocol_width_ru, protocol_height_ru = draw.textsize('\n'.join(protocol_ru_lines), font=font4)
-    protocol_x_ru = part2_x - protocol_width_ru // 2
-    protocol_y_ru = part2_y - protocol_height_ru // 2
-    for line in protocol_ru_lines:
-        text_width, text_height = draw.textsize(line, font=font4)
-        text_x = protocol_x_ru + (protocol_width_ru - text_width) // 2
-        draw.text((text_x, protocol_y_ru), line, fill='#5c92c7', font=font4)
-        protocol_y_ru += protocol_height_ru + 2
+    def parse_issue_date(self, issue_str: str) -> dict:
+        """
+        Парсинг строки протокола: "27.09.2025 №1" -> {day, month, year, number}
+        """
+        result = {"day": "", "month": "", "year": "", "number": ""}
 
-    protocol_width_en, protocol_height_en = draw.textsize('\n'.join(protocol_en_lines), font=font4)
-    protocol_x_en = part3_x - protocol_width_en // 2
-    protocol_y_en = part3_y - protocol_height_en // 2
-    for line in protocol_en_lines:
-        text_width, text_height = draw.textsize(line, font=font4)
-        text_x = protocol_x_en + (protocol_width_en - text_width) // 2
-        draw.text((text_x, protocol_y_en), line, fill='#5c92c7', font=font4)
-        protocol_y_en += protocol_height_en + 2
+        if not issue_str:
+            return result
 
-    # Study type
-    part1_y = canvas_height * 2 // 3
-    part2_y = canvas_height * 2 // 3
-    part3_y = canvas_height * 2 // 3
+        issue_str = str(issue_str).strip()
 
-    study_kz_lines = textwrap.wrap("ОҚЫТУ НЫСАНЫ КҮНДІЗГІ", width=100)
-    study_ru_lines = textwrap.wrap("ФОРМА ОБУЧЕНИЯ ОЧНАЯ", width=100)
-    study_en_lines = textwrap.wrap("FORM OF TRAINING FULL-TIME", width=100)
+        # Ищем номер протокола
+        number_match = issue_str.split(' №')[-1]
+        if number_match:
+            result["number"] = number_match
 
-    study_width_kz, study_height_kz = draw.textsize('\n'.join(study_kz_lines), font=font3)
-    study_x_kz = part1_x - study_width_kz // 2
-    study_y_kz = part1_y - (study_height_kz * len(study_kz_lines)) // 2
-    for line in study_kz_lines:
-        text_width, text_height = draw.textsize(line, font=font3)
-        text_x = study_x_kz + (study_width_kz - text_width) // 2
-        draw.text((text_x, study_y_kz), line, fill='#5c92c7', font=font3)
-        study_y_kz += text_height
+        # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
+        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', issue_str)
+        if date_match:
+            result["day"] = date_match.group(1)
+            result["month"] = self._month_to_name(date_match.group(2), "ru")
+            result["year"] = date_match.group(3)
 
-    study_width_ru, study_height_ru = draw.textsize('\n'.join(study_ru_lines), font=font3)
-    study_x_ru = part2_x - study_width_ru // 2
-    study_y_ru = part2_y - (study_height_ru * len(study_ru_lines)) // 2
-    for line in study_ru_lines:
-        text_width, text_height = draw.textsize(line, font=font3)
-        text_x = study_x_ru + (study_width_ru - text_width) // 2
-        draw.text((text_x, study_y_ru), line, fill='#5c92c7', font=font3)
-        study_y_ru += text_height
+        return result
 
-    study_width_en, study_height_en = draw.textsize('\n'.join(study_en_lines), font=font3)
-    study_x_en = part3_x - study_width_en // 2
-    study_y_en = part3_y - (study_height_en * len(study_en_lines)) // 2
-    for line in study_en_lines:
-        text_width, text_height = draw.textsize(line, font=font3)
-        text_x = study_x_en + (study_width_en - text_width) // 2
-        draw.text((text_x, study_y_en), line, fill='#5c92c7', font=font3)
-        study_y_en += text_height
+    def parse_issue_date_en(self, issue_str: str) -> dict:
+        """
+        Парсинг строки протокола: "27.09.2025 №1" -> {day, month, year, number}
+        """
+        result = {"day": "", "month": "", "year": "", "number": ""}
 
-    # Add QR code
-    qr_size = int(diploma.width * (1.6 / 23))
+        if not issue_str:
+            return result
 
-    qr = qrcode.QRCode(box_size=1)
-    qr.add_data(f'https://ediploma.kz/')
-    qr.make(fit=True)
+        issue_str = str(issue_str).strip()
 
-    img_qr = qr.make_image(fill_color="black", back_color="white").resize((qr_size, qr_size), Image.LANCZOS)
-    margin = int(diploma.width * (0.5 / 23))
-    qr_pos = (diploma.width - qr_size - margin, diploma.height - qr_size - margin)
+        # Ищем номер протокола
+        number_match = issue_str.split(' №')[-1]
+        if number_match:
+            result["number"] = number_match
 
-    diploma.paste(img_qr, qr_pos)
+        # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
+        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', issue_str)
+        if date_match:
+            result["day"] = date_match.group(1)
+            result["month"] = self._month_to_name(date_match.group(2), "ru")
+            result["year"] = date_match.group(3)
 
-    # Save the diploma as WebP with lossless quality
-    diploma.save(f'Diplomas/{name_file}.webp', 'WEBP', lossless=True, quality=100)
+        return result
 
-    # Update JSON metadata to reference WebP files
-    metadata = {
-        "description": f"KBTU 2023 Graduate {name_file}",
-        "image": f"https://azure-cultural-porpoise-565.mypinata.cloud/ipfs/Qmd4j5RHzgpacyZgHMjnLftpCZpEH2c8ZSiJRrM6XPe1nH/{name_file}.webp",  # Changed to .webp
-        "name": name_en,
-        "counter": counter,
-        "attributes": [
-            {
-                "name": "name_kz",
-                "value": name_kz
-            },
-            {
-                "name": "name_ru",
-                "value": name_ru
-            },
-            {
-                "name": "name_en",
-                "value": name_en
-            },
-            {
-                "name": "protocol_en",
-                "value": protocol_en
-            },
-            {
-                "name": "degree_ru",
-                "value": degree_ru
-            },
-            {
-                "name": "degree_en",
-                "value": degree_en
-            },
-            {
-                "name": "qualification_kz",
-                "value": qualification_kz
-            },
-            {
-                "name": "qualification_ru",
-                "value": qualification_ru
-            },
-            {
-                "name": "qualification_en",
-                "value": qualification_en
-            }
-        ]
-    }
+    def parse_protocol_date_en(self, protocol_str: str) -> dict:
+        """Парсинг для английской версии"""
+        result = {"day": "", "month": "", "year": "", "number": ""}
 
-    # Convert the dictionary into a JSON string
-    metadata_json = json.dumps(metadata)
-    fullMetadata += metadata_json + ","
-    # Create a new file with the JSON data
-    filename = f"json/{counter}.json"
-    counter += 1
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(metadata_json)
+        if not protocol_str:
+            return result
 
-fullMetadata += "]"
-with open("fullMetadata.json", "w", encoding="utf-8") as f:
-    f.write(fullMetadata)
+        protocol_str = str(protocol_str).strip()
+
+        number_match = protocol_str.split(' №')[-1]
+        if number_match:
+            result["number"] = number_match
+
+        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
+        if date_match:
+            result["day"] = date_match.group(1)
+            result["month"] = self._month_to_name(date_match.group(2), "en")
+            result["year"] = date_match.group(3)
+
+        return result
+
+    def _month_to_name(self, month_num: str, lang: str) -> str:
+        """Конвертация номера месяца в название"""
+        months_ru = {
+            "01": "января", "02": "февраля", "03": "марта",
+            "04": "апреля", "05": "мая", "06": "июня",
+            "07": "июля", "08": "августа", "09": "сентября",
+            "10": "октября", "11": "ноября", "12": "декабря",
+            "1": "января", "2": "февраля", "3": "марта",
+            "4": "апреля", "5": "мая", "6": "июня",
+            "7": "июля", "8": "августа", "9": "сентября",
+        }
+        months_en = {
+            "01": "January", "02": "February", "03": "march",
+            "04": "April", "05": "May", "06": "june",
+            "07": "July", "08": "August", "09": "september",
+            "10": "October", "11": "November", "12": "december",
+            "1": "January", "2": "February", "3": "march",
+            "4": "April", "5": "May", "6": "june",
+            "7": "July", "8": "August", "9": "september",
+        }
+
+        months = months_ru if lang == "ru" else months_en
+        return months.get(month_num, month_num)
+
+    def _extract_specialty(self, specialty: str, lang: str) -> str:
+        """Извлечение специальности на нужном языке"""
+        if not specialty:
+            return ""
+
+        parts = str(specialty).split("/")
+
+        if lang == "kz" and len(parts) >= 1:
+            return parts[0].strip()
+        elif lang == "ru" and len(parts) >= 2:
+            return parts[1].strip()
+        elif lang == "en" and len(parts) >= 3:
+            return parts[2].strip()
+
+        return specialty
+
+    def generate(self, data: dict, counter: int, qr_data: Optional[str] = None) -> dict:
+        """Генерация диплома"""
+        diploma = self.template.copy()
+        draw = ImageDraw.Draw(diploma)
+        university_id = 8
+        hash_value = uuid.uuid4().hex
+        # Парсим даты протоколов
+        protocol_ru = self.parse_protocol_date(data.get("protocol_date_number_ru", ""))
+        protocol_en = self.parse_protocol_date_en(data.get("protocol_date_number_en", ""))
+        issue_date_ru = self.parse_protocol_date(datetime.date.today().strftime("%d.%m.%Y"))
+        issue_date_en = self.parse_protocol_date_en(datetime.date.today().strftime("%d.%m.%Y"))
+        rector_name_kz = "Ж.К. Түймебаев"
+        rector_name_ru = "Ж.К. Туймебаев"
+        rector_name_en = "Zh.Tuimebayev"
+        # ===== ЛЕВАЯ СТОРОНА (РУССКИЙ) =====
+        left_data = {
+            "protocol_day": protocol_ru["day"],
+            "protocol_month": protocol_ru["month"],
+            "protocol_year": protocol_ru["year"],
+            "protocol_number": protocol_ru["number"],
+            "full_name": data.get("full_name_ru", "").upper(),
+            "specialty": self._extract_specialty(data.get("specialty", ""), "ru"),
+            "degree_qualification": data.get("degree_qualification_ru", ""),
+            "form_of_training": "ОЧНАЯ",  # или из данных
+            "registration_number": data.get("registration_number", ""),
+            "issue_day": issue_date_ru["day"],  # Заполняется вручную
+            "issue_month": issue_date_ru["month"],
+            "issue_year": issue_date_ru["year"],
+            "rector_name": rector_name_ru,
+        }
+
+        # ===== ПРАВАЯ СТОРОНА (АНГЛИЙСКИЙ) =====
+        right_data = {
+            "protocol_day": protocol_en["day"],
+            "protocol_month": protocol_en["month"],
+            "protocol_year": protocol_en["year"],
+            "protocol_number": protocol_en["number"],
+            "full_name": data.get("full_name_en", "").upper(),
+            "specialty": self._extract_specialty(data.get("specialty", ""), "en"),
+            "degree_qualification": data.get("degree_qualification_en", ""),
+            "form_of_training": "FULL-TIME",
+            "issue_day": issue_date_en["day"],  # Заполняется вручную
+            "issue_month": issue_date_en["month"],
+            "issue_year": issue_date_en["year"],
+            "rector_name": rector_name_en,
+        }
+
+        # Рисуем левую сторону
+        for field_name, field_config in self.config.fields_left.items():
+            text = left_data.get(field_name, "")
+            self.draw_text(draw, text, field_config)
+
+        # Рисуем правую сторону
+        for field_name, field_config in self.config.fields_right.items():
+            text = right_data.get(field_name, "")
+            self.draw_text(draw, text, field_config)
+
+        # QR код
+        if self.config.qr_enabled:
+            qr_url = qr_data or f"{self.config.qr_base_url}/{university_id}/{hash_value}"
+            self.add_qr_code(diploma, qr_url)
+
+        # Имя файла
+        name_en = data.get("full_name_en", f"graduate_{counter}")
+        number = data.get("number", counter)
+        filename = self.sanitize_filename(f"{name_en.replace(' ', '_')}_{number}")
+
+        # Сохраняем
+        output_path = f"{self.config.output_dir}/{filename}.webp"
+        diploma.save(output_path, 'WEBP', lossless=False, quality=30)
+
+        # Метаданные
+        metadata = {
+            "id": counter,
+            "filename": f"{filename}.webp",
+            "path": output_path,
+            "name_ru": data.get("full_name_ru", ""),
+            "name_en": data.get("full_name_en", ""),
+            "degree_ru": data.get("degree_qualification_ru", ""),
+            "degree_en": data.get("degree_qualification_en", ""),
+            "specialty": data.get("specialty", ""),
+            "university": data.get("university_name", ""),
+            "registration_number": data.get("registration_number", ""),
+            "iin": data.get("iin", ""),
+            "gpa": data.get("gpa", ""),
+        }
+
+        json_path = f"json/{counter}.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+        print(f"✓ Generated: {output_path}")
+        return metadata
+
+    def generate_batch(self, data_list: List[dict]) -> List[dict]:
+        """Генерация пакета дипломов"""
+        all_metadata = []
+
+        for i, data in enumerate(data_list, start=1):
+            try:
+                metadata = self.generate(data, counter=i)
+                all_metadata.append(metadata)
+            except Exception as e:
+                print(f"✗ Error generating diploma {i}: {e}")
+
+        with open("fullMetadata.json", "w", encoding="utf-8") as f:
+            json.dump(all_metadata, f, ensure_ascii=False, indent=2)
+
+        print(f"\n{'=' * 50}")
+        print(f"Generated {len(all_metadata)} diplomas")
+
+        return all_metadata
+
+# ==================== ТЕСТ ============

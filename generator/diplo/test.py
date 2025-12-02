@@ -1,3 +1,4 @@
+# new parser
 import pandas as pd
 import numpy as np
 
@@ -26,17 +27,17 @@ def parse_complex_excel(file_path):
         12: 'degree_qualification_ru',         # M - Степень и квалификация рус
         # 13: ПРОПУСК (N) - пустая колонка
         14: 'degree_qualification_en',         # O - Степень и квалификация англ
-        # 15: ПРОПУСК (P) - пустая колонка
-        16: 'with_honors_kz',                  # Q - с отличием каз
-        17: 'with_honors_ru',                  # R - с отличием рус
-        18: 'with_honors_en',                  # S - с отличием англ
-        19: 'specialty',                       # T - Специальность
-        20: 'gpa',                             # U - GPA
-        21: 'iin',                             # V - ИИН
-        22: 'region',                          # W - Регион
-        23: 'email',                           # X - email
-        24: 'mobile_phone',                    # Y - моб.тел
-        25: 'residence'                        # Z - Место проживания
+        # 15: ПРОПУСК (P) - пустая колонка todo: какого то фига тут какая та дыра
+        15: 'with_honors_kz',                  # Q - с отличием каз
+        16: 'with_honors_ru',                  # R - с отличием рус
+        17: 'with_honors_en',                  # S - с отличием англ
+        18: 'specialty',                       # T - Специальность
+        19: 'gpa',                             # U - GPA
+        20: 'iin',                             # V - ИИН
+        21: 'region',                          # W - Регион
+        22: 'email',                           # X - email
+        23: 'mobile_phone',                    # Y - моб.тел
+        24: 'residence'                        # Z - Место проживания
     }
 
     # Находим строку с заголовками (обычно первая строка с данными)

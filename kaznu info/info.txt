@@ -1,9 +1,8 @@
 INFO: 
+kz - Әл-Фараби атындағы Қазақ ұлттық университеті (ҚазҰУ) — Қазақстанның жетекші жоғары оқу орны және аймақтық үздіксіз білім берудің ірі орталықтарының бірі. Университет Алматы қаласында орналасқан және әлемдік деңгейдегі зерттеу университеті мәртебесіне ие.
+en - Al-Farabi Kazakh National University, also called KazNU or KazGU, is a national research university located in Almaty, Kazakhstan. Named after philosopher and scholar al-Farabi, it is one of the country's largest universities. KazNU is Kazakhstan's oldest classical university
 ru - Казахский национальный университет имени аль-Фараби (КазНУ) — ведущее высшее учебное заведение Казахстана и один из крупнейших региональных центров непрерывного образования. Университет расположен в Алматы и имеет статус исследовательского университета мирового уровня
 
-en - Al-Farabi Kazakh National University, also called KazNU or KazGU, is a national research university located in Almaty, Kazakhstan. Named after philosopher and scholar al-Farabi, it is one of the country's largest universities. KazNU is Kazakhstan's oldest classical university
-
-kz - Әл-Фараби атындағы Қазақ ұлттық университеті (ҚазҰУ) — Қазақстанның жетекші жоғары оқу орны және аймақтық үздіксіз білім берудің ірі орталықтарының бірі. Университет Алматы қаласында орналасқан және әлемдік деңгейдегі зерттеу университеті мәртебесіне ие.
 
 
 
