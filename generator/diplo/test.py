@@ -66,8 +66,9 @@ def parse_complex_excel(file_path):
 
     # Очищаем данные
     result_df = clean_data(result_df)
-
+    # return df as dict list
     return result_df
+
 
 def find_header_row(df):
     """
@@ -157,24 +158,24 @@ def export_data(df, output_file):
     print(f"Данные экспортированы в {output_file}")
 
 # Пример использования
-if __name__ == "__main__":
-    file_path = "sample_data_kaznu.xlsx"  # Укажите путь к вашему файлу
-
-    # Сначала инспектируем структуру
-    inspect_excel_structure(file_path)
-
-    # Парсим данные
-    print("\n=== ПАРСИНГ ДАННЫХ ===")
-    graduates_df = parse_complex_excel(file_path)
-
-    print(f"Успешно распарсено записей: {len(graduates_df)}")
-
-    if len(graduates_df) > 0:
-        print("\nПервые 3 записи:")
-        print(graduates_df.head(3))
-
-        # Экспортируем результат
-        export_data(graduates_df, "parsed_graduates.csv")
+# if __name__ == "__main__":
+#     file_path = "sample_data_kaznu.xlsx"  # Укажите путь к вашему файлу
+#
+#     # Сначала инспектируем структуру
+#     inspect_excel_structure(file_path)
+#
+#     # Парсим данные
+#     print("\n=== ПАРСИНГ ДАННЫХ ===")
+#     graduates_df = parse_complex_excel(file_path)
+#
+#     print(f"Успешно распарсено записей: {len(graduates_df)}")
+#
+#     if len(graduates_df) > 0:
+#         print("\nПервые 3 записи:")
+#         print(graduates_df.head(3))
+#
+#         # Экспортируем результат
+#         export_data(graduates_df, "parsed_graduates.csv")
 
         # Пример поиска
         # found = search_graduates(graduates_df, university="технический")

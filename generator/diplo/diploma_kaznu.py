@@ -31,9 +31,11 @@ class TemplateConfig:
     """Конфигурация шаблона диплома"""
     name: str
     template_path: str
+    template_path_kaz: str
     output_dir: str = "Diplomas"
     fields_left: Dict[str, TextField] = field(default_factory=dict)
     fields_right: Dict[str, TextField] = field(default_factory=dict)
+    fields_kaz: Dict[str, TextField] = field(default_factory=dict)
     qr_enabled: bool = True
     qr_x_percent: float = 10.0
     qr_y_percent: float = 80.0
@@ -51,7 +53,9 @@ class DiplomaGenerator:
     def __init__(self, config: TemplateConfig):
         self.config = config
         self.template = Image.open(config.template_path).convert('RGBA')
+        self.template_kaz = Image.open(config.template_path_kaz).convert('RGBA')
         self.width, self.height = self.template.size
+        self.width_kaz, self.height_kaz = self.template_kaz.size
         self.fonts_cache: Dict[str, ImageFont.FreeTypeFont] = {}
 
         os.makedirs(config.output_dir, exist_ok=True)
@@ -146,7 +150,7 @@ class DiplomaGenerator:
         """Очистка имени файла"""
         return re.sub(r'[\\/*?:"<>|\n\t]', '', filename)
 
-    def parse_protocol_date(self, protocol_str: str) -> dict:
+    def parse_protocol_date(self, protocol_str: str, lang: str = 'ru') -> dict:
         """
         Парсинг строки протокола: "27.09.2025 №1" -> {day, month, year, number}
         """
@@ -166,12 +170,12 @@ class DiplomaGenerator:
         date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
         if date_match:
             result["day"] = date_match.group(1)
-            result["month"] = self._month_to_name(date_match.group(2), "ru")
+            result["month"] = self._month_to_name(date_match.group(2), lang)
             result["year"] = date_match.group(3)
 
         return result
 
-    def parse_issue_date(self, issue_str: str) -> dict:
+    def parse_issue_date(self, issue_str: str, lang: str = 'ru') -> dict:
         """
         Парсинг строки протокола: "27.09.2025 №1" -> {day, month, year, number}
         """
@@ -191,7 +195,7 @@ class DiplomaGenerator:
         date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', issue_str)
         if date_match:
             result["day"] = date_match.group(1)
-            result["month"] = self._month_to_name(date_match.group(2), "ru")
+            result["month"] = self._month_to_name(date_match.group(2), lang)
             result["year"] = date_match.group(3)
 
         return result
@@ -253,6 +257,7 @@ class DiplomaGenerator:
             "4": "апреля", "5": "мая", "6": "июня",
             "7": "июля", "8": "августа", "9": "сентября",
         }
+
         months_en = {
             "01": "January", "02": "February", "03": "march",
             "04": "April", "05": "May", "06": "june",
@@ -263,7 +268,22 @@ class DiplomaGenerator:
             "7": "July", "8": "August", "9": "september",
         }
 
-        months = months_ru if lang == "ru" else months_en
+        months_kz = {
+            "01": "қаңтар", "02": "ақпан", "03": "наурыз",
+            "04": "сәуір", "05": "мамыр", "06": "маусым",
+            "07": "шілде", "08": "тамыз", "09": "қыркүйек",
+            "10": "қазан", "11": "қараша", "12": "желтоқсан",
+            "1": "қаңтар", "2": "ақпан", "3": "наурыз",
+            "4": "сәуір", "5": "мамыр", "6": "маусым",
+            "7": "шілде", "8": "тамыз", "9": "қыркүйек",
+        }
+
+        if lang == "ru":
+            months = months_ru
+        elif lang == "en":
+            months = months_en
+        else:
+            months = months_kz
         return months.get(month_num, month_num)
 
     def _extract_specialty(self, specialty: str, lang: str) -> str:
@@ -286,13 +306,17 @@ class DiplomaGenerator:
         """Генерация диплома"""
         diploma = self.template.copy()
         draw = ImageDraw.Draw(diploma)
+        diploma_kaz = self.template_kaz.copy()
+        draw_kaz = ImageDraw.Draw(diploma_kaz)
         university_id = 8
         hash_value = uuid.uuid4().hex
         # Парсим даты протоколов
-        protocol_ru = self.parse_protocol_date(data.get("protocol_date_number_ru", ""))
-        protocol_en = self.parse_protocol_date_en(data.get("protocol_date_number_en", ""))
-        issue_date_ru = self.parse_protocol_date(datetime.date.today().strftime("%d.%m.%Y"))
-        issue_date_en = self.parse_protocol_date_en(datetime.date.today().strftime("%d.%m.%Y"))
+        protocol_ru = self.parse_protocol_date(data.get("protocol_date_number_ru", ""), 'ru')
+        protocol_en = self.parse_protocol_date(data.get("protocol_date_number_en", ""), 'en')
+        protocol_kz = self.parse_protocol_date(data.get("protocol_date_number_kz", ""), 'kz')
+        issue_date_ru = self.parse_protocol_date(datetime.date.today().strftime("%d.%m.%Y"), 'ru')
+        issue_date_en = self.parse_protocol_date(datetime.date.today().strftime("%d.%m.%Y"), 'en')
+        issue_date_kz = self.parse_protocol_date(datetime.date.today().strftime("%d.%m.%Y"), 'kz')
         rector_name_kz = "Ж.К. Түймебаев"
         rector_name_ru = "Ж.К. Туймебаев"
         rector_name_en = "Zh.Tuimebayev"
@@ -329,6 +353,22 @@ class DiplomaGenerator:
             "rector_name": rector_name_en,
         }
 
+        # ===== (Казахский) отдельное фото =====
+        kaz_data = {
+            "protocol_day": protocol_kz["day"],
+            "protocol_month": protocol_kz["month"],
+            "protocol_year": protocol_kz["year"],
+            "protocol_number": protocol_kz["number"],
+            "full_name": data.get("full_name_kz", "").upper(),
+            "specialty": self._extract_specialty(data.get("specialty", ""), "kz"),
+            "degree_qualification": data.get("degree_qualification_kz", ""),
+            "form_of_training": "ТОЛЫҚ",
+            "issue_day": issue_date_kz["day"],  # Заполняется вручную
+            "issue_month": issue_date_kz["month"],
+            "issue_year": issue_date_kz["year"],
+            "rector_name": rector_name_kz,
+        }
+
         # Рисуем левую сторону
         for field_name, field_config in self.config.fields_left.items():
             text = left_data.get(field_name, "")
@@ -339,12 +379,20 @@ class DiplomaGenerator:
             text = right_data.get(field_name, "")
             self.draw_text(draw, text, field_config)
 
+        # Рисуем правую сторону
+        for field_name, field_config in self.config.fields_kaz.items():
+            text = kaz_data.get(field_name, "")
+            self.draw_text(draw_kaz, text, field_config)
+
         # QR код
         if self.config.qr_enabled:
             qr_url = qr_data or f"{self.config.qr_base_url}/{university_id}/{hash_value}"
             self.add_qr_code(diploma, qr_url)
 
-        # Имя файла
+            qr_url = qr_data or f"{self.config.qr_base_url}/{university_id}/{hash_value}"
+            self.add_qr_code(diploma_kaz, qr_url)
+
+        # Имя файла RUS EN
         name_en = data.get("full_name_en", f"graduate_{counter}")
         number = data.get("number", counter)
         filename = self.sanitize_filename(f"{name_en.replace(' ', '_')}_{number}")
@@ -353,6 +401,13 @@ class DiplomaGenerator:
         output_path = f"{self.config.output_dir}/{filename}.webp"
         diploma.save(output_path, 'WEBP', lossless=False, quality=30)
 
+        # Имя файла KAZ
+        filename = self.sanitize_filename(f"{name_en.replace(' ', '_')}_kz_{number}")
+
+        # Сохраняем
+        output_path = f"{self.config.output_dir}/{filename}.webp"
+        diploma_kaz.save(output_path, 'WEBP', lossless=False, quality=30)
+
         # Метаданные
         metadata = {
             "id": counter,
@@ -360,8 +415,10 @@ class DiplomaGenerator:
             "path": output_path,
             "name_ru": data.get("full_name_ru", ""),
             "name_en": data.get("full_name_en", ""),
+            "name_kz": data.get("full_name_kz", ""),
             "degree_ru": data.get("degree_qualification_ru", ""),
             "degree_en": data.get("degree_qualification_en", ""),
+            "degree_kz": data.get("degree_qualification_kz", ""),
             "specialty": data.get("specialty", ""),
             "university": data.get("university_name", ""),
             "registration_number": data.get("registration_number", ""),
