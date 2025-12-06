@@ -1,0 +1,24 @@
+INFO: 
+kz - Әл-Фараби атындағы Қазақ ұлттық университеті (ҚазҰУ) — Қазақстанның жетекші жоғары оқу орны және аймақтық үздіксіз білім берудің ірі орталықтарының бірі. Университет Алматы қаласында орналасқан және әлемдік деңгейдегі зерттеу университеті мәртебесіне ие.
+en - Al-Farabi Kazakh National University, also called KazNU or KazGU, is a national research university located in Almaty, Kazakhstan. Named after philosopher and scholar al-Farabi, it is one of the country's largest universities. KazNU is Kazakhstan's oldest classical university
+ru - Казахский национальный университет имени аль-Фараби (КазНУ) — ведущее высшее учебное заведение Казахстана и один из крупнейших региональных центров непрерывного образования. Университет расположен в Алматы и имеет статус исследовательского университета мирового уровня
+
+
+
+
+Contacts: 
+
+ru - Адрес: Республика Казахстан, г. Алматы, проспект Аль-Фараби, 71, 050040.
+Телефон (Контакт-центр): +7 (727) 377-33-30.
+E-mail: info@kaznu.edu.kz.
+Контакты для иностранных абитуриентов: Отдел интернационализации и рекрутинга предоставляет информацию по электронной почте international@kaznu.kz или по телефону +7 (727) 377-33-33 (вн. 19-99)
+
+en - Address: 71 Al-Farabi Avenue, Almaty, 050040, Republic of Kazakhstan.
+Phone (Contact Center): +7 (727) 377-33-30.
+E-mail: info@kaznu.edu.kz.
+Contacts for International Applicants: The Department of Internationalization and Recruitment provides information via email at international@kaznu.kz or by phone at +7 (727) 377-33-33 (ext. 19-99).
+
+kz - Мекенжайы: 050040, Қазақстан Республикасы, Алматы қ., Әл-Фараби даңғылы, 71.
+Телефон (Хабарласуды жалпыландыру орталығы): +7 (727) 377-33-30.
+Электрондық пошта: info@kaznu.edu.kz.
+Шетелдік абитуриенттер үшін байланыс: Интернационалдану және іріктеу бөлімі хабарламаларды international@kaznu.kz электрондық поштасына немесе +7 (727) 377-33-33 (ішкі 19-99) телефонына жібереді.

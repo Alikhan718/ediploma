@@ -6,40 +6,6 @@ import qrcode
 #import config
 from config import *
 
-#def rk():
-
-    # draw = Image.open("W.png")
-    # draw.show()
-    # x=int(input('are u satisfied?'))
-
-    # if(x==1):
-    #     return 'W.png'
-    # else:
-
-    #     Image1=Image.open('B.png')
-    #     Image2=Image.open('R.png')
-    #     Image3=Image.open('G.png')
-    #     Image4=Image.open('C.png')
-
-    #     draw.show()
-    #     Image1.show()
-    #     Image2.show()
-    #     Image3.show()
-    #     Image4.show()
-
-    #     z=input('choose template')
-
-    #     if(z=='W'):
-    #         return 'W.png'
-    #     elif(z=='R'):
-    #         return 'R.png'
-    #     elif(z=='G'):
-    #         return 'G.png'
-    #     elif(z=='B'):
-    #         return 'B.png'
-    #     else:
-    #         return 'C.png'
-
 
 
 
