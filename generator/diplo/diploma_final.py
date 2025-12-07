@@ -1,6 +1,7 @@
 # run command # nohup python3 -m flask --app diploma_final.py run --debug &
 
 import hashlib
+import json
 import os
 import platform
 import random
@@ -10,7 +11,6 @@ import textwrap
 import warnings
 import zipfile
 
-import json
 import openpyxl
 import psycopg2
 import qrcode
@@ -118,16 +118,17 @@ def createTableIfNotExists(cursor):
     try:
         # Define the SQL statement to create the table if it doesn't exist
         create_table_query = """
-        CREATE TABLE IF NOT EXISTS upload_diplomas (
-            id SERIAL PRIMARY KEY,
-            hash_id varchar(12),
-            value JSONB,
-            university_id INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            deleted_at TIMESTAMP
-        )
-        """
+                             CREATE TABLE IF NOT EXISTS upload_diplomas
+                             (
+                                 id            SERIAL PRIMARY KEY,
+                                 hash_id       varchar(12),
+                                 value JSONB,
+                                 university_id INTEGER,
+                                 created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                 updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                 deleted_at    TIMESTAMP
+                             ) \
+                             """
         # Execute the SQL statement
         cursor.execute(create_table_query)
     except psycopg2.Error as e:
@@ -609,9 +610,6 @@ def parseData(file, university_id):
         return {"error": str(e)}, 500
 
 
-from concurrent.futures import ThreadPoolExecutor, wait
-
-
 def upload_file(file_path, url, headers, parent_cid=None):
     with open(file_path, 'rb') as file:
         files = {'file': (os.path.basename(file_path), file)}
@@ -981,7 +979,9 @@ def upload():
             try:
                 connection, cursor = connectDatabase()
 
-                cursor.execute("SELECT id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null", (university_id,))
+                cursor.execute(
+                    "SELECT id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
+                    (university_id,))
                 existing_record = cursor.fetchone()
 
                 if existing_record:
@@ -995,7 +995,10 @@ def upload():
                         (generation_hash, university_id,)
                     )
                     connection.commit()
-                    run_python_file_in_background("/var/www/generator/diploma_satpaev.py")
+                    generator_path = "/var/www/generator/diploma_satpaev.py"
+                    if university_id == 8:
+                        generator_path = "/var/www/generator/diploma_kaznu.py"
+                    run_python_file_in_background(generator_path)
                     return f"{base_url}/get-file/archives/{generation_hash}.zip"
 
             except Exception as e:

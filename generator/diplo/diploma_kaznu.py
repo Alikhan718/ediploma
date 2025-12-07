@@ -1,16 +1,158 @@
 # diploma_kaznu.py
 import datetime
+import json
 import os
+import random
 import re
+import string
 import textwrap
 import uuid
 from dataclasses import dataclass, field
+from pprint import pprint
 from typing import Dict, List, Optional, Tuple
 
+import bcrypt
+import numpy as np
+import pandas as pd
+import psycopg2
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
-import json
+
+def parse_complex_excel(file_path):
+    """
+    Парсит сложный Excel файл с объединенными ячейками и пропусками колонок
+    """
+    # Читаем Excel файл без заголовков, чтобы контролировать mapping вручную
+    df = pd.read_excel(file_path, header=None)
+
+    # Определяем mapping колонок по буквам Excel (A, B, C, ...)
+    # Создаем словарь соответствия: номер_колонки -> название_поля
+    column_mapping = {
+        0: 'number',  # A - №
+        1: 'university_name',  # B - Наименование ВУЗа
+        2: 'registration_number',  # C - Регистрационный номер
+        3: 'full_name_kz',  # D - ФИО выпускника каз
+        4: 'full_name_ru',  # E - ФИО выпускника рус
+        5: 'full_name_en',  # F - ФИО выпускника англ
+        6: 'protocol_date_number_kz',  # G - Дата и номер протокола каз
+        7: 'protocol_date_number_ru',  # H - Дата и номер протокола рус
+        8: 'protocol_date_number_en',  # I - Дата и номер протокола англ
+        # 9: ПРОПУСК (J) - пустая колонка
+        10: 'degree_qualification_kz',  # K - Степень и квалификация каз
+        # 11: ПРОПУСК (L) - пустая колонка
+        12: 'degree_qualification_ru',  # M - Степень и квалификация рус
+        # 13: ПРОПУСК (N) - пустая колонка
+        14: 'degree_qualification_en',  # O - Степень и квалификация англ
+        # 15: ПРОПУСК (P) - пустая колонка todo: какого то фига тут какая та дыра
+        15: 'with_honors_kz',  # Q - с отличием каз
+        16: 'with_honors_ru',  # R - с отличием рус
+        17: 'with_honors_en',  # S - с отличием англ
+        18: 'specialty',  # T - Специальность
+        19: 'gpa',  # U - GPA
+        20: 'iin',  # V - ИИН
+        21: 'region',  # W - Регион
+        22: 'email',  # X - email
+        23: 'mobile_phone',  # Y - моб.тел
+        24: 'residence'  # Z - Место проживания
+    }
+
+    # Находим строку с заголовками (обычно первая строка с данными)
+    header_row = find_header_row(df)
+    print(f"Заголовки найдены в строке: {header_row}")
+
+    # Создаем новый DataFrame с правильными колонками
+    parsed_data = []
+
+    # Проходим по строкам данных (после заголовка)
+    for idx in range(header_row + 2, len(df)):
+        row = df.iloc[idx]
+        parsed_row = {}
+
+        for col_idx, field_name in column_mapping.items():
+            if col_idx < len(row):
+                parsed_row[field_name] = row[col_idx]
+            else:
+                parsed_row[field_name] = None
+
+        # Проверяем, что строка не пустая
+        if not is_empty_row(parsed_row):
+            parsed_data.append(parsed_row)
+
+    result_df = pd.DataFrame(parsed_data)
+
+    # Очищаем данные
+    result_df = clean_data(result_df)
+    # return df as dict list
+    return result_df
+
+
+def find_header_row(df):
+    """
+    Находит строку с заголовками в DataFrame
+    """
+    for idx in range(min(10, len(df))):  # Проверяем первые 10 строк
+        row = df.iloc[idx]
+        # Ищем строку, содержащую ключевые слова заголовков
+        row_text = ' '.join([str(cell) for cell in row if pd.notna(cell)])
+        if any(keyword in row_text for keyword in ['Наименование ВУЗа', 'ФИО выпускника', 'Регистрационный номер']):
+            return idx
+    return 0  # Если не нашли, используем первую строку
+
+
+def is_empty_row(row_dict):
+    """
+    Проверяет, является ли строка пустой
+    """
+    values = [v for v in row_dict.values() if v is not None and str(v).strip() != '']
+    return len(values) == 0
+
+
+def clean_data(df):
+    """
+    Очищает и преобразует данные
+    """
+    # Заменяем NaN и None на пустые строки
+    df = df.replace([np.nan, None], '')
+
+    # Преобразуем числовые колонки
+    if 'gpa' in df.columns:
+        df['gpa'] = pd.to_numeric(df['gpa'], errors='coerce')
+
+    if 'number' in df.columns:
+        df['number'] = pd.to_numeric(df['number'], errors='coerce')
+
+    # Очищаем строковые колонки
+    string_columns = ['university_name', 'registration_number', 'full_name_kz',
+                      'full_name_ru', 'full_name_en', 'specialty', 'region',
+                      'email', 'mobile_phone', 'residence']
+
+    for col in string_columns:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+
+    return df
+
+
+def inspect_excel_structure(file_path, num_rows=5):
+    """
+    Функция для инспекции структуры Excel файла
+    """
+    print("=== ИНСПЕКЦИЯ СТРУКТУРЫ EXCEL ===")
+
+    # Читаем без заголовков
+    df_raw = pd.read_excel(file_path, header=None)
+
+    print(f"Всего строк: {len(df_raw)}, колонок: {len(df_raw.columns)}")
+    print("\nПервые 5 строк сырых данных:")
+
+    for i in range(min(num_rows, len(df_raw))):
+        print(f"\n--- Строка {i} ---")
+        for j in range(min(15, len(df_raw.columns))):  # Показываем первые 15 колонок
+            cell_value = df_raw.iloc[i, j]
+            if pd.notna(cell_value) and str(cell_value).strip() != '':
+                print(f"  Колонка {j} ({chr(65 + j)}): {cell_value}")
+
 
 
 @dataclass
@@ -43,8 +185,200 @@ class TemplateConfig:
     qr_base_url: str = "https://app.ediploma.kz"
 
 
-# ==================== КООРДИНАТЫ ПО КРАСНЫМ КВАДРАТАМ ====================
-# Изображение ~970x686 px
+KAZNU_BACHELOR = TemplateConfig(
+    name="kaznu_bachelor_ru_en",
+    template_path="kaznu_bachelor_ru_en.webp",
+    template_path_kaz="kaznu_bachelor_kz.webp",
+    output_dir="Diplomas",
+    # ===== ЛЕВАЯ СТОРОНА (РУССКИЙ) =====
+    fields_left={
+        "protocol_day": TextField(
+            x_percent=18.5, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "protocol_month": TextField(
+            x_percent=23.0, y_percent=40.1,
+            font_size=46, max_width=15
+        ),
+        "protocol_year": TextField(
+            x_percent=28.2, y_percent=39.8,
+            font_size=49, max_width=10
+        ),
+        "protocol_number": TextField(
+            x_percent=42.0, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "full_name": TextField(
+            x_percent=29.0, y_percent=46.0,
+            font_size=70, max_width=30, align="center"
+        ),
+        "specialty": TextField(
+            x_percent=29.0, y_percent=54.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "degree_qualification": TextField(
+            x_percent=27.5, y_percent=63.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "form_of_training": TextField(
+            x_percent=28.0 + 7, y_percent=68.0,
+            font_size=41, max_width=20
+        ),
+        "registration_number": TextField(
+            x_percent=10.0, y_percent=79.0,
+            font_size=41, max_width=10
+        ),
+        "issue_day": TextField(
+            x_percent=20.5 + 2.8, y_percent=89.8,
+            font_size=49, max_width=5
+        ),
+        "issue_month": TextField(
+            x_percent=26.0 + 1.5, y_percent=90,
+            font_size=46, max_width=15
+        ),
+        "issue_year": TextField(
+            x_percent=32.5, y_percent=89.8,
+            font_size=49, max_width=10
+        ),
+
+        "rector_name": TextField(
+            x_percent=37, y_percent=79,
+            font_size=45, max_width=50
+        ),
+    },
+    # ===== ПРАВАЯ СТОРОНА (АНГЛИЙСКИЙ) =====
+    fields_right={
+        "protocol_day": TextField(
+            x_percent=68.7, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "protocol_month": TextField(
+            x_percent=73.3, y_percent=40.1,
+            font_size=46, max_width=15
+        ),
+        "protocol_year": TextField(
+            x_percent=79.5, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "protocol_number": TextField(
+            x_percent=89.5, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "full_name": TextField(
+            x_percent=75.0, y_percent=46.0,
+            font_size=70, max_width=30, align="center"
+        ),
+        "specialty": TextField(
+            x_percent=73.5, y_percent=54.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "degree_qualification": TextField(
+            x_percent=73.5, y_percent=63.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "form_of_training": TextField(
+            x_percent=78.0 + 4, y_percent=68.0,
+            font_size=41, max_width=20
+        ),
+        "issue_day": TextField(
+            x_percent=68.5 + 2.8, y_percent=89.8,
+            font_size=49, max_width=5
+        ),
+        "issue_month": TextField(
+            x_percent=73.0 + 2.5, y_percent=89.8,
+            font_size=46, max_width=15
+        ),
+        "issue_year": TextField(
+            x_percent=80.2, y_percent=89.8,
+            font_size=49, max_width=10
+        ),
+        "rector_name": TextField(
+            x_percent=63.1, y_percent=79,
+            font_size=45, max_width=50
+        ),
+    },
+    # ===== ПРАВАЯ СТОРОНА (АНГЛИЙСКИЙ) =====
+    fields_kaz={
+        "protocol_day": TextField(
+            x_percent=50.2, y_percent=35.1,
+            font_size=55, max_width=5
+        ),
+        "protocol_month": TextField(
+            x_percent=57.2, y_percent=35.2,
+            font_size=55, max_width=15
+        ),
+        "protocol_year": TextField(
+            x_percent=40.8, y_percent=35.1,
+            font_size=55, max_width=5
+        ),
+        "protocol_number": TextField(
+            x_percent=73.8, y_percent=35.1,
+            font_size=55, max_width=5
+        ),
+        "full_name": TextField(
+            x_percent=50.0, y_percent=41.5,
+            font_size=70, max_width=30, align="center"
+        ),
+        "specialty": TextField(
+            x_percent=50, y_percent=46.8,
+            font_size=55, max_width=120, align="center"
+        ),
+        "degree_qualification": TextField(
+            x_percent=50, y_percent=56.2,
+            font_size=55, max_width=120, align="center"
+        ),
+        "form_of_training": TextField(
+            x_percent=53, y_percent=67.3,
+            font_size=58, max_width=20
+        ),
+        "issue_day": TextField(
+            x_percent=51, y_percent=89.7,
+            font_size=55, max_width=5
+        ),
+        "issue_month": TextField(
+            x_percent=57.3, y_percent=89.6,
+            font_size=55, max_width=15
+        ),
+        "issue_year": TextField(
+            x_percent=42, y_percent=89.7,
+            font_size=55, max_width=10
+        ),
+        "rector_name": TextField(
+            x_percent=73.5, y_percent=75,
+            font_size=50, max_width=50
+        ),
+    },
+    qr_enabled=True,
+)
+
+
+def connectDatabase():
+    # Database connection parameters
+    host = "109.248.170.239"
+    port = 5432
+    database = "postgres"
+    user = "postgres"
+    password = "7Vow1e2v0v7x"
+    # Establish a connection to the database
+    try:
+        connection = psycopg2.connect(
+            host=host,
+            port=port,
+            database=database,
+            user=user,
+            password=password
+        )
+        print('connected')
+        # Create a cursor object
+        cursor = connection.cursor()
+        return connection, cursor
+
+    except psycopg2.Error as e:
+        print("Error connecting to the database:", e)
+        return None, None
+
+
+connection, cursor = connectDatabase()
 
 
 class DiplomaGenerator:
@@ -302,7 +636,7 @@ class DiplomaGenerator:
 
         return specialty
 
-    def generate(self, data: dict, counter: int, qr_data: Optional[str] = None) -> dict:
+    def generate(self, data: dict, counter: int, metadata_hash: string, qr_data: Optional[str] = None) -> dict:
         """Генерация диплома"""
         diploma = self.template.copy()
         draw = ImageDraw.Draw(diploma)
@@ -416,12 +750,20 @@ class DiplomaGenerator:
             "name_ru": data.get("full_name_ru", ""),
             "name_en": data.get("full_name_en", ""),
             "name_kz": data.get("full_name_kz", ""),
+            "email": data.get("email", ""),
             "degree_ru": data.get("degree_qualification_ru", ""),
             "degree_en": data.get("degree_qualification_en", ""),
             "degree_kz": data.get("degree_qualification_kz", ""),
-            "specialty": data.get("specialty", ""),
-            "university": data.get("university_name", ""),
-            "registration_number": data.get("registration_number", ""),
+            "speciality_en": self._extract_specialty(data.get("specialty", ""), "en"),
+            "speciality_kz": self._extract_specialty(data.get("specialty", ""), "kz"),
+            "speciality_ru": self._extract_specialty(data.get("specialty", ""), "ru"),
+            "speciality": {
+                "NameEn": self._extract_specialty(data.get("specialty", ""), "en"),
+                "NameKz": self._extract_specialty(data.get("specialty", ""), "kz"),
+                "NameRu": self._extract_specialty(data.get("specialty", ""), "ru"),
+            },
+            "year_number": protocol_kz["year"],
+            "Number": data.get("registration_number", ""),
             "iin": data.get("iin", ""),
             "gpa": data.get("gpa", ""),
         }
@@ -452,4 +794,187 @@ class DiplomaGenerator:
 
         return all_metadata
 
+
+def diplomaSave(university_id, metadata_hash, item, counter):
+    # f = open(f'./storage/jsons/{metadata_hash}/fullMetadata.json', 'r')
+
+    # body = json.loads(f.read())
+
+    ignoreAttr = [
+        "name_en",
+        "name_ru",
+        "name_kz",
+        "gpa",
+        "iin",
+        "speciality_en",
+        "speciality_kz",
+        "speciality_ru",
+        "speciality",
+        "protocol",
+        "education_type",
+        "study_direction",
+        "year",
+    ]
+    flag = False
+
+    image = f"https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(item['name_en'].split(
+        " ")) + f"_{str(item['iin'])[-2:]}_kz_ru.jpeg, https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(
+        item['name_en'].split(" ")) + f"_{str(item['iin'])[-2:]}_en.jpeg"
+    data = {}
+    contentFields = {}
+    attributes = item
+
+    if item["diploma"]["Number"]:
+        contentFields['Number'] = item["diploma"]["Number"]
+
+    data['year'] = item['diploma']['Issue']['Year']
+    for key, value in attributes.items():
+        if key == 'number':
+            continue
+
+        if key in ignoreAttr:
+            data[key] = value
+        else:
+            contentFields[key] = value
+
+    # Construct and execute the SQL query to insert data into
+    # the database
+
+    # create user start
+    nameArr = item["name_kz"].split(" ")
+    last_name = nameArr[0]
+    first_name = nameArr[1]
+    middle_name = nameArr[2] if len(nameArr) > 2 else ""
+    password = generate_random_string(8)
+    # password = "12345"
+    hashed_password = hash_password(password).decode('utf-8')
+    email = item['email'] if (
+            'email' in item and item['email'] and len(item['email'])) else f"{'_'.join(nameArr)}@jasaim.kz"
+    file_path = f'storage/jsons/{university_id}/users.json'
+    new_value = {
+        "name": item["name_kz"],
+        "email": email,
+        "password": password,
+    }
+    if os.path.exists(file_path):
+        # Open file and read contents
+        with open(file_path, 'r', encoding='utf-8') as file:
+            # Check if file is empty
+            if os.stat(file_path).st_size == 0:
+                jsonData = []
+            else:
+                jsonData = json.load(file)
+
+            # Check if email exists in the array
+            for index, user in enumerate(jsonData):
+                if user["email"] == new_value["email"]:
+                    email = f"{'_'.join(nameArr)}_{counter}@jasaim.kz"
+                    new_value['email'] = email
+                    break
+
+            # Add new value to array
+            jsonData.append(new_value)
+
+        # Write updated jsonData back to file
+        with open(file_path, 'w', encoding='utf-8') as file:
+            json.dump(jsonData, file, ensure_ascii=False, indent=4)
+    else:
+        createFolderIfNotExists(f'storage/jsons/{university_id}')
+        # Create file and set empty array with new value
+        with open(file_path, 'w') as file:
+            json.dump([new_value], file, ensure_ascii=False, indent=4)
+    query = (
+        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    cursor.execute(query,
+                   (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3,
+                    True))
+    user_id = cursor.fetchone()[0]
+    # create user end
+    print(email, password)
+
+    query = (
+        "INSERT INTO diplomas("
+        "name_en, name_ru, name_kz, university_id, year, "
+        "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
+        ") "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    pprint(item)
+    values = (
+        item["name_en"], item["name_ru"], item["name_kz"],
+        university_id, item["year_number"],
+        item["speciality_en"], item["speciality_ru"],
+        item["speciality_kz"],
+        image,
+        item["gpa"],
+        item["iin"],
+        False,
+        user_id
+    )
+    cursor.execute(query, values)
+    diploma_id = cursor.fetchone()[0]
+    connection.commit()
+    # inserting additional fields
+    for key, val in contentFields.items():
+        query = (
+            "INSERT INTO content_fields(type, value, content_id) "
+            "VALUES (%s, %s, %s)"
+        )
+        val = json.dumps(val, ensure_ascii=False) if isinstance(val, dict) else val
+        values = ("diploma_" + key, json.dumps(val, ensure_ascii=False), diploma_id)
+        cursor.execute(query, values)
+
+    # connection.commit()
+    print(f"Counter: {counter}")
+    cursor.execute(f"UPDATE diploma_generations SET progress = {counter} where hash = '{metadata_hash}'")
+    connection.commit()
+
+
+def generate_random_string(length):
+    letters = string.ascii_letters
+    return ''.join(random.choice(letters) for i in range(length))
+
+
+def hash_password(password):
+    # Generate salt
+    salt = bcrypt.gensalt(10)
+    # Hash password with the generated salt
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed_password
+
+
+def generateHash(text):
+    key = "hashotnursa"
+    nHash = ""
+    for i in range(len(text)):
+        nHash += chr((((ord(text[i]) - 48) + (ord(key[i % len(key)]) - 97)) % 26) + 97)
+    return nHash
+
+
+def createFolderIfNotExists(folder_path):
+    if not os.path.exists(folder_path):
+        try:
+            # Create the folder if it doesn't exist
+            os.makedirs(folder_path)
+            print("Folder " + folder_path + " created successfully.")
+        except Exception as e:
+            print("An error occurred while creating folder " + folder_path + " : " + e)
+
+
 # ==================== ТЕСТ ============
+
+file_path = "sample_data_kaznu.xlsx"  # Укажите путь к вашему файлу
+
+# Сначала инспектируем структуру
+inspect_excel_structure(file_path)
+
+# Парсим данные
+print("\n=== ПАРСИНГ ДАННЫХ ===")
+graduates_df = parse_complex_excel(file_path)
+generator = DiplomaGenerator(KAZNU_BACHELOR)
+graduates_arr = graduates_df.to_dict(orient='records')
+generator.generate_batch(graduates_arr)
