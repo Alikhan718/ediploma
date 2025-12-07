@@ -1,12 +1,12 @@
-# run command # nohup python3 -m flask --app diploma_final.py run --debug &
+# run command # python3 -m flask --app diploma_final.py run --host=0.0.0.0 --debug &
 
 import hashlib
-import json
 import os
 import platform
 import random
 import re
 import string
+import subprocess
 import textwrap
 import warnings
 import zipfile
@@ -18,6 +18,9 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from flask import Flask, send_file, request
 from flask_cors import CORS
+
+import json
+from pinatatest import pin_folder_to_ipfs
 
 users = []
 progresses = {}
@@ -629,32 +632,12 @@ def upload_file(file_path, url, headers, parent_cid=None):
 @app.route("/nft/upload/<university_id>", methods=["GET"])
 def uploadToNFT(university_id, file_directory="storage/images/"):
     file_directory += str(university_id)
-    url = "https://api.nft.storage/upload"
-
-    # List all files in the directory
-    file_names = os.listdir(file_directory)
-
-    # Create a dictionary to hold the files
-    files = []
-    for file_name in file_names:
-        file_path = os.path.join(file_directory, file_name)
-        files.append(('file', (file_name, open(file_path, 'rb'))))
-
-    # Replace "your_token_here" with your actual token
-    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweEMxM2ZiNGExNUQxNzkyMjQ0MjcxQ2U5MzY0ZDI5OTdjMUI1NTY1NTciLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTY5NjA5NTg1NDY2MCwibmFtZSI6Imphc2FpbSJ9.84ZE8_mZ227yn5p4j8F5y67M4_df9afEYNfaJ60B6bg"
-    headers = {'Authorization': f'Bearer {token}'}
-
-    # Use requests.Session for improved performance
-    with requests.Session() as session:
-        response = session.post(url, files=files, headers=headers)
+    res = pin_folder_to_ipfs(file_directory)
 
     # Check the response
-    if response.status_code == 200:
-        data = response.json()
-        cid = data['value']['cid']
-        return cid
-    else:
-        print("Error:", response.status_code, response.text)
+    if res and res['IpfsHash']:
+        return res['IpfsHash']
+    return None
 
 
 # def uploadToNFT(university_id, file_directory="storage/images/"):
@@ -944,15 +927,62 @@ def removeFolder(folder_path):
         print(f"Error: {e}")
 
 
-def run_python_file_in_background(file_path):
+def run_python_file_in_background(file_path, log_file='python_script.log'):
+    """
+    Запускает Python файл в фоновом режиме и сохраняет логи в указанный файл
+
+    Args:
+        file_path (str): Путь к Python файлу
+        log_file (str): Путь к файлу для сохранения логов (по умолчанию 'python_script.log')
+    """
+    # Полный путь к лог-файлу
+    log_path = os.path.abspath(log_file)
+
+    # Создаем папку для логов, если она не существует
+    log_dir = os.path.dirname(log_path)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
     if platform.system() == 'Windows':
-        print('start cmd /c python "{}"'.format(file_path))
-        os.system('start cmd /c python "{}"'.format(file_path))
-    elif platform.system() == 'Linux':
-        print('nohup python3 {} &'.format(file_path))
-        os.system('nohup python3 {} &'.format(file_path))
+        # Для Windows используем cmd с перенаправлением вывода в файл
+        # > для перезаписи, >> для добавления в конец файла
+        command = f'start cmd /c python "{file_path}" >> "{log_path}" 2>&1'
+        print(f'Запуск: {command}')
+        os.system(command)
+
+    elif platform.system() == 'Linux' or platform.system() == 'Darwin':  # Darwin = macOS
+        # Для Linux/macOS используем nohup с перенаправлением вывода
+        # nohup python3 script.py > log_file 2>&1 &
+        command = f'nohup python3 "{file_path}" >> "{log_path}" 2>&1 &'
+        print(f'Запуск: {command}')
+
+        # Используем subprocess для более надежного запуска
+        try:
+            # Вариант 1: Через subprocess.Popen
+            with open(log_path, 'a') as log_file_obj:
+                process = subprocess.Popen(
+                    ['nohup', 'python3', file_path],
+                    stdout=log_file_obj,
+                    stderr=subprocess.STDOUT,
+                    preexec_fn=os.setpgrp  # Создает новую группу процессов
+                )
+            print(f'Процесс запущен с PID: {process.pid}')
+            print(f'Логи сохраняются в: {log_path}')
+
+            # Сохраняем PID в файл для последующего управления
+            with open('process_pid.txt', 'w') as pid_file:
+                pid_file.write(str(process.pid))
+
+        except Exception as e:
+            print(f'Ошибка при запуске: {e}')
+            # Fallback на os.system
+            os.system(command)
+
     else:
-        print("Unsupported operating system")
+        print("Неподдерживаемая операционная система")
+        return
+
+    print(f'Логи будут сохраняться в файл: {log_path}')
 
 
 def generate_random_string(length):
@@ -970,7 +1000,6 @@ def upload():
             return {'error': 'File required'}
         if 'university_id' not in request.values:
             return {'error': 'No university ID'}
-
         university_id = request.form.get('university_id')
         generationType = request.form.get('type')
         if int(university_id) < 3 and generationType == 'api':
@@ -996,9 +1025,19 @@ def upload():
                     )
                     connection.commit()
                     generator_path = "/var/www/generator/diploma_satpaev.py"
-                    if university_id == 8:
+                    if int(university_id) == 8:
                         generator_path = "/var/www/generator/diploma_kaznu.py"
-                    run_python_file_in_background(generator_path)
+                    file = request.files['file']
+                    # Проверка на пустой файл
+                    if file.filename == '':
+                        return 'No selected file', 400
+                    upload_folder = f"/var/www/generator/storage/files/{generation_hash}"
+                    createFolderIfNotExists(upload_folder)
+                    # Сохраняем файл
+                    file.save(os.path.join(upload_folder, 'data.xlsx'))
+                    # Запускаем генерацию в фоне
+                    run_python_file_in_background(generator_path,
+                                                  log_file=f"/var/www/generator/storage/logs/{generation_hash}.log")
                     return f"{base_url}/get-file/archives/{generation_hash}.zip"
 
             except Exception as e:
@@ -1112,6 +1151,29 @@ def get_image(file_path):
     else:
         # Return an error message or a default image if the requested image doesn't exist
         return "File not found", 404
+
+
+@app.route("/generation_status/<university_id>")
+def get_status(university_id):
+    connection, cursor = connectDatabase()
+    cursor.execute(
+        "SELECT university_id, hash, progress, max_progress FROM diploma_generations WHERE university_id = %s and finished_at is null",
+        (int(university_id),))
+    existing_record = cursor.fetchone()
+    if existing_record:
+        # If the record exists, return link to future archive
+        university_id = existing_record[0]
+        generation_hash = existing_record[1]
+        progress = existing_record[2]
+        max_progress = existing_record[3]
+        return {
+            "university_id": university_id,
+            "generation_hash": generation_hash,
+            "progress": progress,
+            "max_progress": max_progress
+        }
+    else:
+        return {"error": "No ongoing generation"}, 404
 
 
 @app.route("/get-sample", methods=["GET"])

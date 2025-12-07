@@ -1,15 +1,15 @@
 # diploma_kaznu.py
 import datetime
-import json
 import os
 import random
 import re
 import string
 import textwrap
-import uuid
+import traceback
+import zipfile
 from dataclasses import dataclass, field
 from pprint import pprint
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import bcrypt
 import numpy as np
@@ -17,6 +17,8 @@ import pandas as pd
 import psycopg2
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
+
+import json
 
 
 def parse_complex_excel(file_path):
@@ -51,9 +53,9 @@ def parse_complex_excel(file_path):
         18: 'specialty',  # T - Специальность
         19: 'gpa',  # U - GPA
         20: 'iin',  # V - ИИН
-        21: 'region',  # W - Регион
+        21: 'diploma_region',  # W - Регион
         22: 'email',  # X - email
-        23: 'mobile_phone',  # Y - моб.тел
+        23: 'diploma_phone',  # Y - моб.тел
         24: 'residence'  # Z - Место проживания
     }
 
@@ -154,7 +156,6 @@ def inspect_excel_structure(file_path, num_rows=5):
                 print(f"  Колонка {j} ({chr(65 + j)}): {cell_value}")
 
 
-
 @dataclass
 class TextField:
     """Конфигурация текстового поля"""
@@ -182,174 +183,9 @@ class TemplateConfig:
     qr_x_percent: float = 10.0
     qr_y_percent: float = 80.0
     qr_size_percent: float = 12
-    qr_base_url: str = "https://app.ediploma.kz"
-
-
-KAZNU_BACHELOR = TemplateConfig(
-    name="kaznu_bachelor_ru_en",
-    template_path="kaznu_bachelor_ru_en.webp",
-    template_path_kaz="kaznu_bachelor_kz.webp",
-    output_dir="Diplomas",
-    # ===== ЛЕВАЯ СТОРОНА (РУССКИЙ) =====
-    fields_left={
-        "protocol_day": TextField(
-            x_percent=18.5, y_percent=39.8,
-            font_size=49, max_width=5
-        ),
-        "protocol_month": TextField(
-            x_percent=23.0, y_percent=40.1,
-            font_size=46, max_width=15
-        ),
-        "protocol_year": TextField(
-            x_percent=28.2, y_percent=39.8,
-            font_size=49, max_width=10
-        ),
-        "protocol_number": TextField(
-            x_percent=42.0, y_percent=39.8,
-            font_size=49, max_width=5
-        ),
-        "full_name": TextField(
-            x_percent=29.0, y_percent=46.0,
-            font_size=70, max_width=30, align="center"
-        ),
-        "specialty": TextField(
-            x_percent=29.0, y_percent=54.5,
-            font_size=49, max_width=120, align="center"
-        ),
-        "degree_qualification": TextField(
-            x_percent=27.5, y_percent=63.5,
-            font_size=49, max_width=120, align="center"
-        ),
-        "form_of_training": TextField(
-            x_percent=28.0 + 7, y_percent=68.0,
-            font_size=41, max_width=20
-        ),
-        "registration_number": TextField(
-            x_percent=10.0, y_percent=79.0,
-            font_size=41, max_width=10
-        ),
-        "issue_day": TextField(
-            x_percent=20.5 + 2.8, y_percent=89.8,
-            font_size=49, max_width=5
-        ),
-        "issue_month": TextField(
-            x_percent=26.0 + 1.5, y_percent=90,
-            font_size=46, max_width=15
-        ),
-        "issue_year": TextField(
-            x_percent=32.5, y_percent=89.8,
-            font_size=49, max_width=10
-        ),
-
-        "rector_name": TextField(
-            x_percent=37, y_percent=79,
-            font_size=45, max_width=50
-        ),
-    },
-    # ===== ПРАВАЯ СТОРОНА (АНГЛИЙСКИЙ) =====
-    fields_right={
-        "protocol_day": TextField(
-            x_percent=68.7, y_percent=39.8,
-            font_size=49, max_width=5
-        ),
-        "protocol_month": TextField(
-            x_percent=73.3, y_percent=40.1,
-            font_size=46, max_width=15
-        ),
-        "protocol_year": TextField(
-            x_percent=79.5, y_percent=39.8,
-            font_size=49, max_width=5
-        ),
-        "protocol_number": TextField(
-            x_percent=89.5, y_percent=39.8,
-            font_size=49, max_width=5
-        ),
-        "full_name": TextField(
-            x_percent=75.0, y_percent=46.0,
-            font_size=70, max_width=30, align="center"
-        ),
-        "specialty": TextField(
-            x_percent=73.5, y_percent=54.5,
-            font_size=49, max_width=120, align="center"
-        ),
-        "degree_qualification": TextField(
-            x_percent=73.5, y_percent=63.5,
-            font_size=49, max_width=120, align="center"
-        ),
-        "form_of_training": TextField(
-            x_percent=78.0 + 4, y_percent=68.0,
-            font_size=41, max_width=20
-        ),
-        "issue_day": TextField(
-            x_percent=68.5 + 2.8, y_percent=89.8,
-            font_size=49, max_width=5
-        ),
-        "issue_month": TextField(
-            x_percent=73.0 + 2.5, y_percent=89.8,
-            font_size=46, max_width=15
-        ),
-        "issue_year": TextField(
-            x_percent=80.2, y_percent=89.8,
-            font_size=49, max_width=10
-        ),
-        "rector_name": TextField(
-            x_percent=63.1, y_percent=79,
-            font_size=45, max_width=50
-        ),
-    },
-    # ===== ПРАВАЯ СТОРОНА (АНГЛИЙСКИЙ) =====
-    fields_kaz={
-        "protocol_day": TextField(
-            x_percent=50.2, y_percent=35.1,
-            font_size=55, max_width=5
-        ),
-        "protocol_month": TextField(
-            x_percent=57.2, y_percent=35.2,
-            font_size=55, max_width=15
-        ),
-        "protocol_year": TextField(
-            x_percent=40.8, y_percent=35.1,
-            font_size=55, max_width=5
-        ),
-        "protocol_number": TextField(
-            x_percent=73.8, y_percent=35.1,
-            font_size=55, max_width=5
-        ),
-        "full_name": TextField(
-            x_percent=50.0, y_percent=41.5,
-            font_size=70, max_width=30, align="center"
-        ),
-        "specialty": TextField(
-            x_percent=50, y_percent=46.8,
-            font_size=55, max_width=120, align="center"
-        ),
-        "degree_qualification": TextField(
-            x_percent=50, y_percent=56.2,
-            font_size=55, max_width=120, align="center"
-        ),
-        "form_of_training": TextField(
-            x_percent=53, y_percent=67.3,
-            font_size=58, max_width=20
-        ),
-        "issue_day": TextField(
-            x_percent=51, y_percent=89.7,
-            font_size=55, max_width=5
-        ),
-        "issue_month": TextField(
-            x_percent=57.3, y_percent=89.6,
-            font_size=55, max_width=15
-        ),
-        "issue_year": TextField(
-            x_percent=42, y_percent=89.7,
-            font_size=55, max_width=10
-        ),
-        "rector_name": TextField(
-            x_percent=73.5, y_percent=75,
-            font_size=50, max_width=50
-        ),
-    },
-    qr_enabled=True,
-)
+    qr_base_url: str = "https://app.ediploma.kz",
+    hash: str = "",
+    university_id: int = 0,
 
 
 def connectDatabase():
@@ -636,14 +472,13 @@ class DiplomaGenerator:
 
         return specialty
 
-    def generate(self, data: dict, counter: int, metadata_hash: string, qr_data: Optional[str] = None) -> dict:
+    def generate(self, data: dict, counter: int) -> dict:
         """Генерация диплома"""
         diploma = self.template.copy()
         draw = ImageDraw.Draw(diploma)
         diploma_kaz = self.template_kaz.copy()
         draw_kaz = ImageDraw.Draw(diploma_kaz)
         university_id = 8
-        hash_value = uuid.uuid4().hex
         # Парсим даты протоколов
         protocol_ru = self.parse_protocol_date(data.get("protocol_date_number_ru", ""), 'ru')
         protocol_en = self.parse_protocol_date(data.get("protocol_date_number_en", ""), 'en')
@@ -720,23 +555,24 @@ class DiplomaGenerator:
 
         # QR код
         if self.config.qr_enabled:
-            qr_url = qr_data or f"{self.config.qr_base_url}/{university_id}/{hash_value}"
+            text = f"{data['iin']}"
+            generatedHash = generateHash(text)
+            qr_url = f'https://app.ediploma.kz/{university_id}/{generatedHash}'
+            # qr_url = qr_data or f"{self.config.qr_base_url}/{university_id}/{hash_value}"
             self.add_qr_code(diploma, qr_url)
-
-            qr_url = qr_data or f"{self.config.qr_base_url}/{university_id}/{hash_value}"
             self.add_qr_code(diploma_kaz, qr_url)
 
         # Имя файла RUS EN
         name_en = data.get("full_name_en", f"graduate_{counter}")
         number = data.get("number", counter)
-        filename = self.sanitize_filename(f"{name_en.replace(' ', '_')}_{number}")
+        filename = self.sanitize_filename(f"{name_en.replace(' ', '_')}_{str(data['iin'])[-2:]}_ru_en")
 
         # Сохраняем
         output_path = f"{self.config.output_dir}/{filename}.webp"
         diploma.save(output_path, 'WEBP', lossless=False, quality=30)
 
         # Имя файла KAZ
-        filename = self.sanitize_filename(f"{name_en.replace(' ', '_')}_kz_{number}")
+        filename = self.sanitize_filename(f"{name_en.replace(' ', '_')}_{str(data['iin'])[-2:]}_kz")
 
         # Сохраняем
         output_path = f"{self.config.output_dir}/{filename}.webp"
@@ -766,6 +602,8 @@ class DiplomaGenerator:
             "Number": data.get("registration_number", ""),
             "iin": data.get("iin", ""),
             "gpa": data.get("gpa", ""),
+            "phone": data.get("diploma_phone", ""),
+            "region": data.get("diploma_region", ""),
         }
 
         json_path = f"json/{counter}.json"
@@ -778,28 +616,45 @@ class DiplomaGenerator:
     def generate_batch(self, data_list: List[dict]) -> List[dict]:
         """Генерация пакета дипломов"""
         all_metadata = []
-
+        cursor.execute(
+            f"UPDATE diploma_generations SET progress = 0, max_progress = {len(data_list)} where hash = '{self.config.hash}' and finished_at is null")
+        connection.commit()
         for i, data in enumerate(data_list, start=1):
             try:
                 metadata = self.generate(data, counter=i)
+                diplomaSave(self.config.university_id, self.config.hash, metadata, i)
                 all_metadata.append(metadata)
             except Exception as e:
+                print(traceback.format_exc())
                 print(f"✗ Error generating diploma {i}: {e}")
+        createFolderIfNotExists(f"./storage/jsons/{self.config.hash}/")
+        zip_folder(folder_path=f"storage/images/{self.config.hash}",
+                   zip_path=f"storage/archives/{self.config.hash}.zip")
 
-        with open("fullMetadata.json", "w", encoding="utf-8") as f:
+        with open(
+                f"./storage/jsons/{self.config.hash}/fullMetadata.json",
+                "w",
+                encoding="utf-8"
+        ) as f:
             json.dump(all_metadata, f, ensure_ascii=False, indent=2)
-
+        # cursor.execute(f"UPDATE diploma_generations SET finished_at = now() where hash = '{self.config.hash}'")
+        # connection.commit()
         print(f"\n{'=' * 50}")
         print(f"Generated {len(all_metadata)} diplomas")
 
         return all_metadata
 
 
+def zip_folder(folder_path, zip_path):
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, folder_path)
+                zipf.write(file_path, arcname=arcname)
+
+
 def diplomaSave(university_id, metadata_hash, item, counter):
-    # f = open(f'./storage/jsons/{metadata_hash}/fullMetadata.json', 'r')
-
-    # body = json.loads(f.read())
-
     ignoreAttr = [
         "name_en",
         "name_ru",
@@ -817,17 +672,19 @@ def diplomaSave(university_id, metadata_hash, item, counter):
     ]
     flag = False
 
-    image = f"https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(item['name_en'].split(
-        " ")) + f"_{str(item['iin'])[-2:]}_kz_ru.jpeg, https://generator.ediploma.kz/get-file/images/{metadata_hash}/" + "_".join(
-        item['name_en'].split(" ")) + f"_{str(item['iin'])[-2:]}_en.jpeg"
+    image = (f"https://generator.ediploma.kz/get-file/images/{metadata_hash}/"
+             + "_".join(item['name_en'].split(" "))
+             + f"_{str(item['iin'])[-2:]}_ru_en.webp, https://generator.ediploma.kz/get-file/images/{metadata_hash}/"
+             + "_".join(item['name_en'].split(" "))
+             + f"_{str(item['iin'])[-2:]}_kz.webp")
     data = {}
     contentFields = {}
     attributes = item
 
-    if item["diploma"]["Number"]:
-        contentFields['Number'] = item["diploma"]["Number"]
+    if item["Number"]:
+        contentFields['Number'] = item["Number"]
 
-    data['year'] = item['diploma']['Issue']['Year']
+    data['year'] = item['year_number']
     for key, value in attributes.items():
         if key == 'number':
             continue
@@ -850,9 +707,9 @@ def diplomaSave(university_id, metadata_hash, item, counter):
     hashed_password = hash_password(password).decode('utf-8')
     email = item['email'] if (
             'email' in item and item['email'] and len(item['email'])) else f"{'_'.join(nameArr)}@jasaim.kz"
-    file_path = f'storage/jsons/{university_id}/users.json'
+    file_path = f'./storage/jsons/{university_id}/users.json'
     new_value = {
-        "name": item["name_kz"],
+        "name": item["name_kz"].strip(),
         "email": email,
         "password": password,
     }
@@ -860,10 +717,7 @@ def diplomaSave(university_id, metadata_hash, item, counter):
         # Open file and read contents
         with open(file_path, 'r', encoding='utf-8') as file:
             # Check if file is empty
-            if os.stat(file_path).st_size == 0:
-                jsonData = []
-            else:
-                jsonData = json.load(file)
+            jsonData = json.load(file)
 
             # Check if email exists in the array
             for index, user in enumerate(jsonData):
@@ -879,9 +733,9 @@ def diplomaSave(university_id, metadata_hash, item, counter):
         with open(file_path, 'w', encoding='utf-8') as file:
             json.dump(jsonData, file, ensure_ascii=False, indent=4)
     else:
-        createFolderIfNotExists(f'storage/jsons/{university_id}')
+        createFolderIfNotExists(f'./storage/jsons/{university_id}')
         # Create file and set empty array with new value
-        with open(file_path, 'w') as file:
+        with open(file_path, 'w', encoding='utf-8') as file:
             json.dump([new_value], file, ensure_ascii=False, indent=4)
     query = (
         "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
@@ -965,15 +819,192 @@ def createFolderIfNotExists(folder_path):
             print("An error occurred while creating folder " + folder_path + " : " + e)
 
 
-# ==================== ТЕСТ ============
+# Парсим данные
+print("\n=== ПАРСИНГ ДАННЫХ ===")
+cursor.execute(
+    "SELECT university_id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
+    (8,))
+existing_record = cursor.fetchone()
+generation_hash, university_id = None, None
+if existing_record:
+    # If the record exists, return link to future archive
+    university_id = existing_record[0]
+    generation_hash = existing_record[1]
+else:
+    exit(0)
 
-file_path = "sample_data_kaznu.xlsx"  # Укажите путь к вашему файлу
+KAZNU_BACHELOR = TemplateConfig(
+    name="kaznu_bachelor_ru_en",
+    template_path="kaznu_bachelor_ru_en.webp",
+    template_path_kaz="kaznu_bachelor_kz.webp",
+    output_dir="./storage/images/" + generation_hash,
+    # ===== ЛЕВАЯ СТОРОНА (РУССКИЙ) =====
+    fields_left={
+        "protocol_day": TextField(
+            x_percent=18.5, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "protocol_month": TextField(
+            x_percent=23.0, y_percent=40.1,
+            font_size=46, max_width=15
+        ),
+        "protocol_year": TextField(
+            x_percent=28.2, y_percent=39.8,
+            font_size=49, max_width=10
+        ),
+        "protocol_number": TextField(
+            x_percent=42.0, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "full_name": TextField(
+            x_percent=29.0, y_percent=46.0,
+            font_size=70, max_width=50, align="center"
+        ),
+        "specialty": TextField(
+            x_percent=29.0, y_percent=54.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "degree_qualification": TextField(
+            x_percent=27.5, y_percent=63.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "form_of_training": TextField(
+            x_percent=28.0 + 7, y_percent=68.0,
+            font_size=41, max_width=20
+        ),
+        "registration_number": TextField(
+            x_percent=10.0, y_percent=79.0,
+            font_size=41, max_width=10
+        ),
+        "issue_day": TextField(
+            x_percent=20.5 + 2.8, y_percent=89.8,
+            font_size=49, max_width=5
+        ),
+        "issue_month": TextField(
+            x_percent=26.0 + 1.5, y_percent=90,
+            font_size=46, max_width=15
+        ),
+        "issue_year": TextField(
+            x_percent=32.5, y_percent=89.8,
+            font_size=49, max_width=10
+        ),
 
+        "rector_name": TextField(
+            x_percent=37, y_percent=79,
+            font_size=45, max_width=50
+        ),
+    },
+    # ===== ПРАВАЯ СТОРОНА (АНГЛИЙСКИЙ) =====
+    fields_right={
+        "protocol_day": TextField(
+            x_percent=68.7, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "protocol_month": TextField(
+            x_percent=73.3, y_percent=40.1,
+            font_size=46, max_width=15
+        ),
+        "protocol_year": TextField(
+            x_percent=79.5, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "protocol_number": TextField(
+            x_percent=89.5, y_percent=39.8,
+            font_size=49, max_width=5
+        ),
+        "full_name": TextField(
+            x_percent=75.0, y_percent=46.0,
+            font_size=70, max_width=50, align="center"
+        ),
+        "specialty": TextField(
+            x_percent=73.5, y_percent=54.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "degree_qualification": TextField(
+            x_percent=73.5, y_percent=63.5,
+            font_size=49, max_width=120, align="center"
+        ),
+        "form_of_training": TextField(
+            x_percent=78.0 + 4, y_percent=68.0,
+            font_size=41, max_width=20
+        ),
+        "issue_day": TextField(
+            x_percent=68.5 + 2.8, y_percent=89.8,
+            font_size=49, max_width=5
+        ),
+        "issue_month": TextField(
+            x_percent=73.0 + 2.5, y_percent=89.8,
+            font_size=46, max_width=15
+        ),
+        "issue_year": TextField(
+            x_percent=80.2, y_percent=89.8,
+            font_size=49, max_width=10
+        ),
+        "rector_name": TextField(
+            x_percent=63.1, y_percent=79,
+            font_size=45, max_width=50
+        ),
+    },
+    # ===== ПРАВАЯ СТОРОНА (АНГЛИЙСКИЙ) =====
+    fields_kaz={
+        "protocol_day": TextField(
+            x_percent=50.2, y_percent=35.1,
+            font_size=55, max_width=5
+        ),
+        "protocol_month": TextField(
+            x_percent=57.2, y_percent=35.2,
+            font_size=55, max_width=15
+        ),
+        "protocol_year": TextField(
+            x_percent=40.8, y_percent=35.1,
+            font_size=55, max_width=5
+        ),
+        "protocol_number": TextField(
+            x_percent=73.8, y_percent=35.1,
+            font_size=55, max_width=5
+        ),
+        "full_name": TextField(
+            x_percent=50.0, y_percent=41.5,
+            font_size=70, max_width=50, align="center"
+        ),
+        "specialty": TextField(
+            x_percent=50, y_percent=46.8,
+            font_size=55, max_width=120, align="center"
+        ),
+        "degree_qualification": TextField(
+            x_percent=50, y_percent=56.2,
+            font_size=55, max_width=120, align="center"
+        ),
+        "form_of_training": TextField(
+            x_percent=53, y_percent=67.3,
+            font_size=58, max_width=20
+        ),
+        "issue_day": TextField(
+            x_percent=51, y_percent=89.7,
+            font_size=55, max_width=5
+        ),
+        "issue_month": TextField(
+            x_percent=57.3, y_percent=89.6,
+            font_size=55, max_width=15
+        ),
+        "issue_year": TextField(
+            x_percent=42, y_percent=89.7,
+            font_size=55, max_width=10
+        ),
+        "rector_name": TextField(
+            x_percent=73.5, y_percent=75,
+            font_size=50, max_width=50
+        ),
+    },
+    qr_enabled=True,
+    hash=generation_hash,
+    university_id=university_id,
+)
+
+file_path = f"./storage/files/{generation_hash}/data.xlsx"
 # Сначала инспектируем структуру
 inspect_excel_structure(file_path)
 
-# Парсим данные
-print("\n=== ПАРСИНГ ДАННЫХ ===")
 graduates_df = parse_complex_excel(file_path)
 generator = DiplomaGenerator(KAZNU_BACHELOR)
 graduates_arr = graduates_df.to_dict(orient='records')
