@@ -2,7 +2,6 @@
 
 import hashlib
 import os
-import platform
 import random
 import re
 import string
@@ -10,6 +9,8 @@ import subprocess
 import textwrap
 import warnings
 import zipfile
+from datetime import datetime
+from io import BytesIO
 
 import openpyxl
 import psycopg2
@@ -18,6 +19,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from flask import Flask, send_file, request
 from flask_cors import CORS
+from psycopg2.extras import execute_values
 
 import json
 from pinatatest import pin_folder_to_ipfs
@@ -927,62 +929,112 @@ def removeFolder(folder_path):
         print(f"Error: {e}")
 
 
-def run_python_file_in_background(file_path, log_file='python_script.log'):
+def run_python_file_in_background(file_path, log_file='python_script.log',
+                                   timeout=None, working_dir=None):
     """
-    Запускает Python файл в фоновом режиме и сохраняет логи в указанный файл
-
-    Args:
-        file_path (str): Путь к Python файлу
-        log_file (str): Путь к файлу для сохранения логов (по умолчанию 'python_script.log')
+    Запускает Python файл в фоновом режиме - БЕЗОПАСНАЯ версия для systemd
     """
-    # Полный путь к лог-файлу
-    log_path = os.path.abspath(log_file)
+    import subprocess
+    import os
+    import time
+    import tempfile
 
-    # Создаем папку для логов, если она не существует
-    log_dir = os.path.dirname(log_path)
-    if log_dir and not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    # 1. Проверяем файл
+    if not os.path.exists(file_path):
+        return {"error": f"Файл не найден: {file_path}", "success": False}
 
-    if platform.system() == 'Windows':
-        # Для Windows используем cmd с перенаправлением вывода в файл
-        # > для перезаписи, >> для добавления в конец файла
-        command = f'start cmd /c python "{file_path}" >> "{log_path}" 2>&1'
-        print(f'Запуск: {command}')
-        os.system(command)
-
-    elif platform.system() == 'Linux' or platform.system() == 'Darwin':  # Darwin = macOS
-        # Для Linux/macOS используем nohup с перенаправлением вывода
-        # nohup python3 script.py > log_file 2>&1 &
-        command = f'nohup python3 "{file_path}" >> "{log_path}" 2>&1 &'
-        print(f'Запуск: {command}')
-
-        # Используем subprocess для более надежного запуска
-        try:
-            # Вариант 1: Через subprocess.Popen
-            with open(log_path, 'a') as log_file_obj:
-                process = subprocess.Popen(
-                    ['nohup', 'python3', file_path],
-                    stdout=log_file_obj,
-                    stderr=subprocess.STDOUT,
-                    preexec_fn=os.setpgrp  # Создает новую группу процессов
-                )
-            print(f'Процесс запущен с PID: {process.pid}')
-            print(f'Логи сохраняются в: {log_path}')
-
-            # Сохраняем PID в файл для последующего управления
-            with open('process_pid.txt', 'w') as pid_file:
-                pid_file.write(str(process.pid))
-
-        except Exception as e:
-            print(f'Ошибка при запуске: {e}')
-            # Fallback на os.system
-            os.system(command)
-
+    # 2. Создаем безопасный путь для логов в /tmp
+    if not log_file.startswith('/'):
+        # Используем подпапку в /tmp
+        log_dir = f"/tmp/flask_{os.getuid()}_logs"
+        os.makedirs(log_dir, exist_ok=True, mode=0o777)
+        log_path = os.path.join(log_dir, log_file)
     else:
-        print("Неподдерживаемая операционная система")
-        return
+        log_path = log_file
 
-    print(f'Логи будут сохраняться в файл: {log_path}')
+    # 3. Рабочая директория
+    if working_dir is None:
+        working_dir = os.path.dirname(file_path) or tempfile.gettempdir()
+
+    # Создаем если нет
+    os.makedirs(working_dir, exist_ok=True, mode=0o755)
+
+    try:
+        print(f"Запуск: python3 {file_path}")
+        print(f"Логи: {log_path}")
+        print(f"Рабочая директория: {working_dir}")
+
+        # ОТКРЫВАЕМ лог файл ДО запуска процесса
+        with open(log_path, 'a') as log_handle:
+            log_handle.write(f"\n{'='*50}\n")
+            log_handle.write(f"Запуск в {time.ctime()}\n")
+            log_handle.write(f"Команда: python3 {file_path}\n")
+            log_handle.flush()
+
+            # ЗАПУСК БЕЗ preexec_fn - это ключевое!
+            process = subprocess.Popen(
+                ['python3', file_path],
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                cwd=working_dir,
+                start_new_session=True,  # Вместо nohup
+                shell=False,
+                # preexec_fn удален - он вызывает ошибку в systemd!
+            )
+
+        pid = process.pid
+
+        # Просто записываем PID в файл (опционально)
+        pid_file = f"/tmp/flask_pid_{pid}.txt"
+        try:
+            with open(pid_file, 'w') as f:
+                f.write(str(pid))
+                f.write(f"\nLog: {log_path}")
+                f.write(f"\nCommand: python3 {file_path}")
+                f.write(f"\nStarted: {time.ctime()}")
+        except:
+            pass  # Не критично
+
+        print(f"✓ Процесс запущен: PID={pid}")
+
+        # Если нужен таймаут
+        if timeout:
+            import threading
+            def kill_timeout():
+                time.sleep(timeout)
+                try:
+                    import signal
+                    os.kill(pid, signal.SIGTERM)
+                    print(f"Процесс {pid} остановлен по таймауту")
+                except:
+                    pass
+
+            threading.Thread(target=kill_timeout, daemon=True).start()
+
+        return {
+            "success": True,
+            "pid": pid,
+            "log_file": log_path,
+            "pid_file": pid_file,
+            "message": "Процесс запущен в фоне"
+        }
+
+    except Exception as e:
+        error_msg = f"Ошибка: {str(e)}"
+        print(f"✗ {error_msg}")
+
+        # Записываем ошибку в лог
+        try:
+            with open(log_path, 'a') as f:
+                f.write(f"\nERROR: {error_msg}\n")
+        except:
+            pass
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "log_file": log_path
+        }
 
 
 def generate_random_string(length):
@@ -1042,36 +1094,389 @@ def upload():
 
             except Exception as e:
                 print(e)
-        try:
-            images_folder = f"storage/images/{university_id}"
-            archive_folder = f"storage/archives"
-            jsons_folder = f"storage/jsons/{university_id}"
-            removeFolder(images_folder)
-            removeFolder(archive_folder)
-            removeFolder(jsons_folder)
-            connection, cursor = connectDatabase()
+                return "false"
+    return "true"
+    #     try:
+    #         images_folder = f"storage/images/{university_id}"
+    #         archive_folder = f"storage/archives"
+    #         jsons_folder = f"storage/jsons/{university_id}"
+    #         removeFolder(images_folder)
+    #         removeFolder(archive_folder)
+    #         removeFolder(jsons_folder)
+    #         connection, cursor = connectDatabase()
+    #
+    #         if connection is None or cursor is None:
+    #             return {"error": "Error connecting to the database."}
+    #         cursor.execute("SELECT publish_amount FROM universities WHERE id = %s", (university_id,))
+    #         existing_record = cursor.fetchone()
+    #
+    #         if existing_record:
+    #             publish_amount = existing_record[0]
+    #             if publish_amount <= 0:
+    #                 return {"error": "Вы исчерпали кол-во генераций"}, 403
+    #
+    #
+    #     except Exception as e:
+    #         return {"error": str(e)}, 500
+    #     connection.commit()
+    #     file = request.files['file']
+    #     # If the user does not select a file, the browser submits an
+    #     # empty file without a filename.
+    #     if file.filename == '':
+    #         return {'error': 'No selected file'}
+    #     return parseData(file, university_id)
+    # return 'here'
 
-            if connection is None or cursor is None:
-                return {"error": "Error connecting to the database."}
-            cursor.execute("SELECT publish_amount FROM universities WHERE id = %s", (university_id,))
-            existing_record = cursor.fetchone()
 
-            if existing_record:
-                publish_amount = existing_record[0]
-                if publish_amount <= 0:
-                    return {"error": "Вы исчерпали кол-во генераций"}, 403
+@app.route("/transcript/parse/<university_id>", methods=["POST"])
+def transcript_parse(university_id):
+    if request.method == 'POST':
+        # check if the post request has the file part
+        if 'file' not in request.files \
+                and 'type' in request.values \
+                and request.form.get('type') != 'api':
+            return {"success": False, 'error': 'Файл не загружен'}
 
-
-        except Exception as e:
-            return {"error": str(e)}, 500
-        connection.commit()
         file = request.files['file']
         # If the user does not select a file, the browser submits an
         # empty file without a filename.
         if file.filename == '':
             return {'error': 'No selected file'}
-        return parseData(file, university_id)
-    return 'here'
+        return parseTranscriptData(file, university_id)
+    return {"success": True}
+
+
+def parseTranscriptData(file, university_id):
+    """
+    Парсинг Excel файла с транскриптами и сохранение в базу данных
+
+    Формат Excel:
+    №	ИИН Студента	ФИО студента	Название предмета - Каз	Название предмета - Рус	Название предмета - Анг	Оценка
+    """
+    try:
+        # Подключение к базе данных
+        connection, cursor = connectDatabase()
+        if connection is None or cursor is None:
+            return {"error": "Error connecting to the database."}
+
+        # Создаем таблицу если не существует
+        createTableIfNotExists(cursor)
+
+        file_content = file.read()
+
+        # Используем BytesIO для работы с файлом в памяти
+        excel_file = BytesIO(file_content)
+        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+        sheet = workbook.active
+
+        # Инициализируем массивы для данных
+        numbers = []
+        iins = []
+        student_names = []
+        subjects_kz = []
+        subjects_ru = []
+        subjects_en = []
+        scores = []
+
+        # Парсим данные из Excel
+        tempCounter = 0
+        for row in sheet.iter_rows(min_row=1, values_only=True):
+            tempCounter += 1
+            if tempCounter < 2:  # Пропускаем заголовок (предполагаем, что заголовок в первой строке)
+                continue
+
+            # Проверяем, что строка не пустая
+            if row[0] is None and row[1] is None and row[2] is None:
+                continue
+
+            # Сохраняем данные
+            numbers.append(row[0])
+            iins.append(row[1])
+            student_names.append(row[2])
+            subjects_kz.append(row[3])
+            subjects_ru.append(row[4])
+            subjects_en.append(row[5])
+            scores.append(row[6])
+
+        # Обрабатываем данные и сохраняем в базу
+        transcripts_data = []
+        inserted_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        for i in range(len(iins)):
+            try:
+                # Очищаем и валидируем данные
+                number = clean_value(numbers[i])
+                iin = clean_iin(iins[i])
+                student_name = clean_value(student_names[i])
+                subject_kz = clean_value(subjects_kz[i])
+                subject_ru = clean_value(subjects_ru[i])
+                subject_en = clean_value(subjects_en[i])
+                score = clean_score(scores[i])
+
+                # Проверяем обязательные поля
+                if not iin:
+                    print(f"⚠️ Строка {i + 1}: пропущена - отсутствует ИИН")
+                    error_count += 1
+                    continue
+
+                if not subject_en:
+                    print(f"⚠️ Строка {i + 1}: пропущена - отсутствует название предмета на английском")
+                    error_count += 1
+                    continue
+
+                # Проверяем длину ИИН
+                if len(iin) != 12:
+                    print(f"⚠️ Строка {i + 1}: ИИН '{iin}' имеет некорректную длину ({len(iin)} вместо 12)")
+                    error_count += 1
+                    continue
+
+                # Проверяем оценку
+                if score is not None:
+                    try:
+                        score_int = int(score)
+                        if not (0 <= score_int <= 100):
+                            print(f"⚠️ Строка {i + 1}: оценка '{score}' вне диапазона 0-100")
+                            score = None  # Устанавливаем None вместо некорректной оценки
+                    except (ValueError, TypeError):
+                        print(f"⚠️ Строка {i + 1}: некорректная оценка '{score}'")
+                        score = None
+
+                # Формируем запись для базы данных
+                transcript_record = {
+                    'iin': iin,
+                    'subject_name_kz': subject_kz,
+                    'subject_name_ru': subject_ru,
+                    'subject_name_en': subject_en,
+                    'score': score,
+                    'university_id': university_id
+                }
+
+                # Проверяем наличие дубликата в текущей партии
+                duplicate_in_batch = any(
+                    t['iin'] == iin and t['subject_name_en'] == subject_en
+                    for t in transcripts_data
+                )
+
+                if duplicate_in_batch:
+                    print(f"⚠️ Строка {i + 1}: дубликат в текущей партии - ИИН {iin}, предмет '{subject_en}'")
+                    skipped_count += 1
+                    continue
+
+                # Проверяем наличие дубликата в базе данных
+                cursor.execute(
+                    "SELECT id FROM transcripts WHERE iin = %s AND subject_name_en = %s AND university_id = %s",
+                    (iin, subject_en, university_id)
+                )
+                existing_record = cursor.fetchone()
+
+                if existing_record:
+                    print(f"⚠️ Строка {i + 1}: дубликат в базе данных - ИИН {iin}, предмет '{subject_en}'")
+                    skipped_count += 1
+                    continue
+
+                # Добавляем запись в список для вставки
+                transcripts_data.append(transcript_record)
+
+            except Exception as e:
+                print(f"❌ Ошибка обработки строки {i + 1}: {e}")
+                error_count += 1
+                continue
+
+        # Массовая вставка данных в базу данных
+        if transcripts_data:
+            try:
+                insert_query = """
+                               INSERT INTO transcripts (iin, subject_name_kz, subject_name_ru, subject_name_en, score,
+                                                        university_id)
+                               VALUES %s
+                               ON CONFLICT
+                                   (iin, subject_name_en, university_id)
+                               DO NOTHING \
+                               """
+
+                # Подготавливаем данные для вставки
+                data_values = [
+                    (
+                        t['iin'],
+                        t['subject_name_kz'],
+                        t['subject_name_ru'],
+                        t['subject_name_en'],
+                        t['score'],
+                        t['university_id']
+                    )
+                    for t in transcripts_data
+                ]
+
+                # Выполняем массовую вставку
+                execute_values(cursor, insert_query, data_values)
+                inserted_count = cursor.rowcount
+                connection.commit()
+
+                print(f"✅ Успешно вставлено записей: {inserted_count}")
+
+            except Exception as e:
+                connection.rollback()
+                print(f"❌ Ошибка при вставке данных в базу: {e}")
+                return {"error": f"Database insertion error: {str(e)}"}
+
+        # Закрываем соединение
+        cursor.close()
+        connection.close()
+
+        # Создаем JSON файл с результатами
+        createFolderIfNotExists(f"storage/jsons/{university_id}/transcripts")
+
+        result_data = {
+            "university_id": university_id,
+            "file_name": os.path.basename(file.filename),
+            "processed_at": datetime.now().isoformat(),
+            "statistics": {
+                "total_rows": len(iins),
+                "inserted": inserted_count,
+                "skipped_duplicates": skipped_count,
+                "errors": error_count,
+                "success_rate": f"{(inserted_count / len(iins) * 100):.1f}%" if len(iins) > 0 else "0%"
+            },
+            "sample_data": transcripts_data[:5] if transcripts_data else []  # Первые 5 записей для примера
+        }
+
+        # Сохраняем результат в JSON файл
+        json_filename = f"storage/jsons/{university_id}/transcripts/{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(json_filename, "w", encoding="utf-8") as f:
+            json.dump(result_data, f, ensure_ascii=False, indent=2)
+
+        # Возвращаем результат
+        return {
+            "success": True,
+            "message": f"Обработка завершена. Вставлено: {inserted_count}, Пропущено: {skipped_count}, Ошибок: {error_count}",
+            "data": result_data,
+            "json_file": json_filename
+        }
+
+    except Exception as e:
+        print(f"❌ Критическая ошибка: {e}")
+        return {"error": str(e)}
+
+
+def clean_value(value):
+    """Очистка значения от лишних пробелов и преобразование в строку"""
+    if value is None:
+        return ""
+
+    if isinstance(value, (int, float)):
+        # Для чисел убираем лишние нули после запятой
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+
+    # Для строк
+    value_str = str(value).strip()
+
+    # Убираем лишние пробелы и переносы строк
+    value_str = re.sub(r'\s+', ' ', value_str)
+
+    return value_str
+
+
+def clean_iin(iin_value):
+    """Очистка ИИН от лишних символов"""
+    if iin_value is None:
+        return ""
+
+    # Преобразуем в строку и удаляем все нецифровые символы
+    iin_str = str(iin_value)
+    iin_clean = re.sub(r'\D', '', iin_str)
+
+    return iin_clean
+
+
+def clean_score(score_value):
+    """Очистка и преобразование оценки"""
+    if score_value is None:
+        return None
+
+    try:
+        # Преобразуем в строку и очищаем
+        score_str = str(score_value).strip()
+
+        # Удаляем все нецифровые символы
+        score_clean = re.sub(r'[^\d.]', '', score_str)
+
+        if not score_clean:
+            return None
+
+        # Преобразуем в число
+        score_float = float(score_clean)
+
+        # Округляем до целого
+        return int(round(score_float))
+
+    except (ValueError, TypeError):
+        return None
+
+
+@app.route("/transcript/<iin>", methods=["GET"])
+def get_transcripts_by_iin(iin, university_id=None):
+    """Получение транскриптов по ИИН"""
+    connection, cursor = connectDatabase()
+    if connection is None or cursor is None:
+        return {"error": "Error connecting to the database."}
+
+    try:
+        if university_id:
+            cursor.execute(
+                """
+                SELECT id, iin, subject_name_kz, subject_name_ru, subject_name_en, score, created_at
+                FROM transcripts
+                WHERE iin = %s
+                  AND university_id = %s
+                ORDER BY subject_name_en
+                """,
+                (iin, university_id)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id,
+                       iin,
+                       subject_name_kz,
+                       subject_name_ru,
+                       subject_name_en,
+                       score,
+                       created_at,
+                       university_id
+                FROM transcripts
+                WHERE iin = %s
+                ORDER BY subject_name_en
+                """,
+                (iin,)
+            )
+
+        transcripts = cursor.fetchall()
+
+        result = []
+        for transcript in transcripts:
+            result.append({
+                "id": transcript[0],
+                "iin": transcript[1],
+                "subject_name_kz": transcript[2],
+                "subject_name_ru": transcript[3],
+                "subject_name_en": transcript[4],
+                "score": transcript[5],
+                "created_at": transcript[6].isoformat() if transcript[6] else None,
+                "university_id": transcript[7] if len(transcript) > 7 else university_id
+            })
+
+        return result
+
+    except Exception as e:
+        print(f"Error fetching transcripts: {e}")
+        return {"error": str(e)}
+    finally:
+        cursor.close()
+        connection.close()
 
 
 # @app.route("/")
