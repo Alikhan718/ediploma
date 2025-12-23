@@ -551,9 +551,9 @@ class DiplomaGenerator:
     def generate_batch(self, data_list: List[dict]) -> List[dict]:
         """Генерация пакета дипломов"""
         all_metadata = []
-        cursor.execute(
-            f"UPDATE diploma_generations SET progress = 0, max_progress = {len(data_list)} where hash = '{self.config.hash}' and finished_at is null")
-        connection.commit()
+        # cursor.execute(
+        #     f"UPDATE diploma_generations SET progress = 0, max_progress = {len(data_list)} where hash = '{self.config.hash}' and finished_at is null")
+        # connection.commit()
         for i, data in enumerate(data_list, start=1):
             try:
                 metadata = self.generate(data, counter=i)
@@ -672,55 +672,55 @@ def diplomaSave(university_id, metadata_hash, item, counter):
         # Create file and set empty array with new value
         with open(file_path, 'w', encoding='utf-8') as file:
             json.dump([new_value], file, ensure_ascii=False, indent=4)
-    query = (
-        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
-        "RETURNING id"
-    )
-    cursor.execute(query,
-                   (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3,
-                    True))
-    user_id = cursor.fetchone()[0]
+    # query = (
+    #     "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
+    #     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+    #     "RETURNING id"
+    # )
+    # cursor.execute(query,
+    #                (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3,
+    #                 True))
+    # user_id = cursor.fetchone()[0]
     # create user end
     print(email, password)
-
-    query = (
-        "INSERT INTO diplomas("
-        "name_en, name_ru, name_kz, university_id, year, "
-        "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
-        ") "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
-        "RETURNING id"
-    )
-    pprint(item)
-    values = (
-        item["name_en"], item["name_ru"], item["name_kz"],
-        university_id, item["year_number"],
-        item["speciality_en"], item["speciality_ru"],
-        item["speciality_kz"],
-        image,
-        item["gpa"],
-        item["iin"],
-        False,
-        user_id
-    )
-    cursor.execute(query, values)
-    diploma_id = cursor.fetchone()[0]
-    connection.commit()
+    #
+    # query = (
+    #     "INSERT INTO diplomas("
+    #     "name_en, name_ru, name_kz, university_id, year, "
+    #     "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
+    #     ") "
+    #     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+    #     "RETURNING id"
+    # )
+    # pprint(item)
+    # values = (
+    #     item["name_en"], item["name_ru"], item["name_kz"],
+    #     university_id, item["year_number"],
+    #     item["speciality_en"], item["speciality_ru"],
+    #     item["speciality_kz"],
+    #     image,
+    #     item["gpa"],
+    #     item["iin"],
+    #     False,
+    #     user_id
+    # )
+    # cursor.execute(query, values)
+    # diploma_id = cursor.fetchone()[0]
+    # connection.commit()
     # inserting additional fields
     for key, val in contentFields.items():
-        query = (
-            "INSERT INTO content_fields(type, value, content_id) "
-            "VALUES (%s, %s, %s)"
-        )
+        # query = (
+        #     "INSERT INTO content_fields(type, value, content_id) "
+        #     "VALUES (%s, %s, %s)"
+        # )
         val = json.dumps(val, ensure_ascii=False) if isinstance(val, dict) else val
-        values = ("diploma_" + key, json.dumps(val, ensure_ascii=False), diploma_id)
-        cursor.execute(query, values)
+        # values = ("diploma_" + key, json.dumps(val, ensure_ascii=False), diploma_id)
+        # cursor.execute(query, values)
 
     # connection.commit()
     print(f"Counter: {counter}")
-    cursor.execute(f"UPDATE diploma_generations SET progress = {counter} where hash = '{metadata_hash}'")
-    connection.commit()
+    # cursor.execute(f"UPDATE diploma_generations SET progress = {counter} where hash = '{metadata_hash}'")
+    # connection.commit()
 
 
 def generate_random_string(length):
@@ -756,18 +756,19 @@ def createFolderIfNotExists(folder_path):
 
 # Парсим данные
 print("\n=== ПАРСИНГ ДАННЫХ ===")
-cursor.execute(
-    "SELECT university_id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
-    (8,))
-existing_record = cursor.fetchone()
-generation_hash, university_id = None, None
-if existing_record:
-    # If the record exists, return link to future archive
-    university_id = existing_record[0]
-    generation_hash = existing_record[1]
-else:
-    exit(0)
+# cursor.execute(
+#     "SELECT university_id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
+#     (8,))
+# existing_record = cursor.fetchone()
+# generation_hash, university_id = None, None
+# if existing_record:
+#     # If the record exists, return link to future archive
+#     university_id = existing_record[0]
+#     generation_hash = existing_record[1]
+# else:
+#     exit(0)
 
+generation_hash, university_id = 'None', None
 KAZNU_BACHELOR = TemplateConfig(
     name="kaznu_bachelor_ru_en",
     template_path="kaznu_bachelor_ru_en.webp",
