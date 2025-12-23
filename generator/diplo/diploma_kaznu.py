@@ -42,21 +42,22 @@ def parse_complex_excel(file_path):
         8: 'protocol_date_number_en',  # I - Дата и номер протокола англ
         # 9: ПРОПУСК (J) - пустая колонка
         10: 'degree_qualification_kz',  # K - Степень и квалификация каз
-        # 11: ПРОПУСК (L) - пустая колонка
+        11: 'speciality_kz',  # K - Степень и квалификация каз
         12: 'degree_qualification_ru',  # M - Степень и квалификация рус
-        # 13: ПРОПУСК (N) - пустая колонка
+        13: 'speciality_ru',  # M - Степень и квалификация рус
         14: 'degree_qualification_en',  # O - Степень и квалификация англ
+        15: 'speciality_en',  # O - Степень и квалификация англ
         # 15: ПРОПУСК (P) - пустая колонка todo: какого то фига тут какая та дыра
-        15: 'with_honors_kz',  # Q - с отличием каз
-        16: 'with_honors_ru',  # R - с отличием рус
-        17: 'with_honors_en',  # S - с отличием англ
-        18: 'specialty',  # T - Специальность
-        19: 'gpa',  # U - GPA
-        20: 'iin',  # V - ИИН
-        21: 'diploma_region',  # W - Регион
-        22: 'email',  # X - email
-        23: 'diploma_phone',  # Y - моб.тел
-        24: 'residence'  # Z - Место проживания
+        16: 'with_honors_kz',  # Q - с отличием каз
+        17: 'with_honors_ru',  # R - с отличием рус
+        18: 'with_honors_en',  # S - с отличием англ
+        19: 'specialty',  # T - Специальность
+        10: 'gpa',  # U - GPA
+        21: 'iin',  # V - ИИН
+        22: 'diploma_region',  # W - Регион
+        23: 'email',  # X - email
+        24: 'diploma_phone',  # Y - моб.тел
+        25: 'residence'  # Z - Место проживания
     }
 
     # Находим строку с заголовками (обычно первая строка с данными)
@@ -332,86 +333,20 @@ class DiplomaGenerator:
         protocol_str = str(protocol_str).strip()
 
         # Ищем номер протокола
-        number_match = protocol_str.split(' №')[-1]
-        if number_match:
-            result["number"] = number_match
+        # number_match = protocol_str.split(' №')[-1]
+        # if number_match:
+        #     result["number"] = number_match
 
         # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
         date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
+        date_match_2 = re.search(r'(\d{1,2})[ /](\s)[ /](\d{4})', protocol_str)
         if date_match:
             result["day"] = date_match.group(1)
             result["month"] = self._month_to_name(date_match.group(2), lang)
             result["year"] = date_match.group(3)
-
-        return result
-
-    def parse_issue_date(self, issue_str: str, lang: str = 'ru') -> dict:
-        """
-        Парсинг строки протокола: "27.09.2025 №1" -> {day, month, year, number}
-        """
-        result = {"day": "", "month": "", "year": "", "number": ""}
-
-        if not issue_str:
-            return result
-
-        issue_str = str(issue_str).strip()
-
-        # Ищем номер протокола
-        number_match = issue_str.split(' №')[-1]
-        if number_match:
-            result["number"] = number_match
-
-        # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
-        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', issue_str)
-        if date_match:
+        if date_match_2:
             result["day"] = date_match.group(1)
-            result["month"] = self._month_to_name(date_match.group(2), lang)
-            result["year"] = date_match.group(3)
-
-        return result
-
-    def parse_issue_date_en(self, issue_str: str) -> dict:
-        """
-        Парсинг строки протокола: "27.09.2025 №1" -> {day, month, year, number}
-        """
-        result = {"day": "", "month": "", "year": "", "number": ""}
-
-        if not issue_str:
-            return result
-
-        issue_str = str(issue_str).strip()
-
-        # Ищем номер протокола
-        number_match = issue_str.split(' №')[-1]
-        if number_match:
-            result["number"] = number_match
-
-        # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
-        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', issue_str)
-        if date_match:
-            result["day"] = date_match.group(1)
-            result["month"] = self._month_to_name(date_match.group(2), "ru")
-            result["year"] = date_match.group(3)
-
-        return result
-
-    def parse_protocol_date_en(self, protocol_str: str) -> dict:
-        """Парсинг для английской версии"""
-        result = {"day": "", "month": "", "year": "", "number": ""}
-
-        if not protocol_str:
-            return result
-
-        protocol_str = str(protocol_str).strip()
-
-        number_match = protocol_str.split(' №')[-1]
-        if number_match:
-            result["number"] = number_match
-
-        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
-        if date_match:
-            result["day"] = date_match.group(1)
-            result["month"] = self._month_to_name(date_match.group(2), "en")
+            result["month"] = date_match.group(2)
             result["year"] = date_match.group(3)
 
         return result
@@ -419,33 +354,33 @@ class DiplomaGenerator:
     def _month_to_name(self, month_num: str, lang: str) -> str:
         """Конвертация номера месяца в название"""
         months_ru = {
-            "01": "января", "02": "февраля", "03": "марта",
-            "04": "апреля", "05": "мая", "06": "июня",
-            "07": "июля", "08": "августа", "09": "сентября",
-            "10": "октября", "11": "ноября", "12": "декабря",
-            "1": "января", "2": "февраля", "3": "марта",
-            "4": "апреля", "5": "мая", "6": "июня",
-            "7": "июля", "8": "августа", "9": "сентября",
+            "01": "Января", "02": "Февраля", "03": "Марта",
+            "04": "Апреля", "05": "Мая", "06": "Июня",
+            "07": "Июля", "08": "Августа", "09": "Сентября",
+            "10": "Октября", "11": "Ноября", "12": "Декабря",
+            "1": "Января", "2": "Февраля", "3": "Марта",
+            "4": "Апреля", "5": "Мая", "6": "Июня",
+            "7": "Июля", "8": "Августа", "9": "Сентября",
         }
 
         months_en = {
-            "01": "January", "02": "February", "03": "march",
-            "04": "April", "05": "May", "06": "june",
-            "07": "July", "08": "August", "09": "september",
-            "10": "October", "11": "November", "12": "december",
-            "1": "January", "2": "February", "3": "march",
-            "4": "April", "5": "May", "6": "june",
-            "7": "July", "8": "August", "9": "september",
+            "01": "January", "02": "February", "03": "March",
+            "04": "April", "05": "May", "06": "June",
+            "07": "July", "08": "August", "09": "September",
+            "10": "October", "11": "November", "12": "December",
+            "1": "January", "2": "February", "3": "March",
+            "4": "April", "5": "May", "6": "June",
+            "7": "July", "8": "August", "9": "September",
         }
 
         months_kz = {
-            "01": "қаңтар", "02": "ақпан", "03": "наурыз",
-            "04": "сәуір", "05": "мамыр", "06": "маусым",
-            "07": "шілде", "08": "тамыз", "09": "қыркүйек",
-            "10": "қазан", "11": "қараша", "12": "желтоқсан",
-            "1": "қаңтар", "2": "ақпан", "3": "наурыз",
-            "4": "сәуір", "5": "мамыр", "6": "маусым",
-            "7": "шілде", "8": "тамыз", "9": "қыркүйек",
+            "01": "Қаңтар", "02": "Ақпан", "03": "Наурыз",
+            "04": "Сәуір", "05": "Мамыр", "06": "Маусым",
+            "07": "Шілде", "08": "Тамыз", "09": "Қыркүйек",
+            "10": "Қазан", "11": "Қараша", "12": "Желтоқсан",
+            "1": "Қаңтар", "2": "Ақпан", "3": "Наурыз",
+            "4": "Сәуір", "5": "Мамыр", "6": "Маусым",
+            "7": "Шілде", "8": "Тамыз", "9": "Қыркүйек",
         }
 
         if lang == "ru":
@@ -496,7 +431,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_ru["year"],
             "protocol_number": protocol_ru["number"],
             "full_name": data.get("full_name_ru", "").upper(),
-            "specialty": self._extract_specialty(data.get("specialty", ""), "ru"),
+            "specialty": data.get("specialty_ru", ""),
             "degree_qualification": data.get("degree_qualification_ru", ""),
             "form_of_training": "ОЧНАЯ",  # или из данных
             "registration_number": data.get("registration_number", ""),
@@ -513,7 +448,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_en["year"],
             "protocol_number": protocol_en["number"],
             "full_name": data.get("full_name_en", "").upper(),
-            "specialty": self._extract_specialty(data.get("specialty", ""), "en"),
+            "specialty": data.get("specialty_en", ""),
             "degree_qualification": data.get("degree_qualification_en", ""),
             "form_of_training": "FULL-TIME",
             "issue_day": issue_date_en["day"],  # Заполняется вручную
@@ -529,7 +464,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_kz["year"],
             "protocol_number": protocol_kz["number"],
             "full_name": data.get("full_name_kz", "").upper(),
-            "specialty": self._extract_specialty(data.get("specialty", ""), "kz"),
+            "specialty": data.get("specialty_kz", ""),
             "degree_qualification": data.get("degree_qualification_kz", ""),
             "form_of_training": "ТОЛЫҚ",
             "issue_day": issue_date_kz["day"],  # Заполняется вручную
@@ -590,13 +525,13 @@ class DiplomaGenerator:
             "degree_ru": data.get("degree_qualification_ru", ""),
             "degree_en": data.get("degree_qualification_en", ""),
             "degree_kz": data.get("degree_qualification_kz", ""),
-            "speciality_en": self._extract_specialty(data.get("specialty", ""), "en"),
-            "speciality_kz": self._extract_specialty(data.get("specialty", ""), "kz"),
-            "speciality_ru": self._extract_specialty(data.get("specialty", ""), "ru"),
+            "speciality_en": data.get("specialty_en", ""),
+            "speciality_kz": data.get("specialty_kz", ""),
+            "speciality_ru": data.get("specialty_ru", ""),
             "speciality": {
-                "NameEn": self._extract_specialty(data.get("specialty", ""), "en"),
-                "NameKz": self._extract_specialty(data.get("specialty", ""), "kz"),
-                "NameRu": self._extract_specialty(data.get("specialty", ""), "ru"),
+                "NameEn": data.get("specialty_en", ""),
+                "NameKz": data.get("specialty_kz", ""),
+                "NameRu": data.get("specialty_ru", ""),
             },
             "year_number": protocol_kz["year"],
             "Number": data.get("registration_number", ""),
@@ -860,11 +795,11 @@ KAZNU_BACHELOR = TemplateConfig(
             x_percent=29.0, y_percent=46.0,
             font_size=70, max_width=50, align="center"
         ),
-        "specialty": TextField(
+        "degree_qualification": TextField(
             x_percent=29.0, y_percent=54.5,
             font_size=49, max_width=120, align="center"
         ),
-        "degree_qualification": TextField(
+        "specialty": TextField(
             x_percent=27.5, y_percent=63.5,
             font_size=49, max_width=120, align="center"
         ),
@@ -916,11 +851,11 @@ KAZNU_BACHELOR = TemplateConfig(
             x_percent=75.0, y_percent=46.0,
             font_size=70, max_width=50, align="center"
         ),
-        "specialty": TextField(
+        "degree_qualification": TextField(
             x_percent=73.5, y_percent=54.5,
             font_size=49, max_width=120, align="center"
         ),
-        "degree_qualification": TextField(
+        "specialty": TextField(
             x_percent=73.5, y_percent=63.5,
             font_size=49, max_width=120, align="center"
         ),
@@ -967,11 +902,11 @@ KAZNU_BACHELOR = TemplateConfig(
             x_percent=50.0, y_percent=41.5,
             font_size=70, max_width=50, align="center"
         ),
-        "specialty": TextField(
+        "degree_qualification": TextField(
             x_percent=50, y_percent=46.8,
             font_size=55, max_width=120, align="center"
         ),
-        "degree_qualification": TextField(
+        "specialty": TextField(
             x_percent=50, y_percent=56.2,
             font_size=55, max_width=120, align="center"
         ),
