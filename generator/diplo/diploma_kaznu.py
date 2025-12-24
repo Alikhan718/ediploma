@@ -560,9 +560,6 @@ class DiplomaGenerator:
         for i, data in enumerate(data_list, start=1):
             try:
                 metadata = self.generate(data, counter=i)
-                print("DATA")
-                pprint(data)
-                exit(0)
                 diplomaSave(self.config.university_id, self.config.hash, metadata, i)
                 all_metadata.append(metadata)
             except Exception as e:
@@ -763,17 +760,17 @@ def createFolderIfNotExists(folder_path):
 
 # Парсим данные
 print("\n=== ПАРСИНГ ДАННЫХ ===")
-# cursor.execute(
-#     "SELECT university_id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
-#     (8,))
-# existing_record = cursor.fetchone()
-# generation_hash, university_id = None, None
-# if existing_record:
-#     # If the record exists, return link to future archive
-#     university_id = existing_record[0]
-#     generation_hash = existing_record[1]
-# else:
-#     exit(0)
+cursor.execute(
+    "SELECT university_id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
+    (8,))
+existing_record = cursor.fetchone()
+generation_hash, university_id = None, None
+if existing_record:
+    # If the record exists, return link to future archive
+    university_id = existing_record[0]
+    generation_hash = existing_record[1]
+else:
+    exit(0)
 
 generation_hash, university_id = 'None', None
 KAZNU_BACHELOR = TemplateConfig(
