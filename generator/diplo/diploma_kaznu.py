@@ -473,8 +473,6 @@ class DiplomaGenerator:
             "rector_name": rector_name_kz,
             "registration_number": data.get("registration_number", ""),
         }
-        print("KAZ_DATA")
-        pprint(kaz_data)
 
         # Рисуем левую сторону
         for field_name, field_config in self.config.fields_left.items():
@@ -576,8 +574,8 @@ class DiplomaGenerator:
                 encoding="utf-8"
         ) as f:
             json.dump(all_metadata, f, ensure_ascii=False, indent=2)
-        cursor.execute(f"UPDATE diploma_generations SET finished_at = now() where hash = '{self.config.hash}'")
-        connection.commit()
+        # cursor.execute(f"UPDATE diploma_generations SET finished_at = now() where hash = '{self.config.hash}'")
+        # connection.commit()
         print(f"\n{'=' * 50}")
         print(f"Generated {len(all_metadata)} diplomas")
 
@@ -772,7 +770,6 @@ if existing_record:
 else:
     exit(0)
 
-generation_hash, university_id = 'None', None
 KAZNU_BACHELOR = TemplateConfig(
     name="kaznu_bachelor_ru_en",
     template_path="kaznu_bachelor_ru_en.webp",
