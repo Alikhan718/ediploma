@@ -40,24 +40,22 @@ def parse_complex_excel(file_path):
         6: 'protocol_date_number_kz',  # G - Дата и номер протокола каз
         7: 'protocol_date_number_ru',  # H - Дата и номер протокола рус
         8: 'protocol_date_number_en',  # I - Дата и номер протокола англ
-        # 9: ПРОПУСК (J) - пустая колонка
-        10: 'degree_qualification_kz',  # K - Степень и квалификация каз
-        11: 'speciality_kz',  # K - Степень и квалификация каз
-        12: 'degree_qualification_ru',  # M - Степень и квалификация рус
-        13: 'speciality_ru',  # M - Степень и квалификация рус
-        14: 'degree_qualification_en',  # O - Степень и квалификация англ
-        15: 'speciality_en',  # O - Степень и квалификация англ
-        # 15: ПРОПУСК (P) - пустая колонка todo: какого то фига тут какая та дыра
-        16: 'with_honors_kz',  # Q - с отличием каз
-        17: 'with_honors_ru',  # R - с отличием рус
-        18: 'with_honors_en',  # S - с отличием англ
-        19: 'specialty',  # T - Специальность
-        10: 'gpa',  # U - GPA
-        21: 'iin',  # V - ИИН
-        22: 'diploma_region',  # W - Регион
-        23: 'email',  # X - email
-        24: 'diploma_phone',  # Y - моб.тел
-        25: 'residence'  # Z - Место проживания
+        9: 'degree_qualification_kz',  # K - Степень и квалификация каз
+        10: 'speciality_kz',  # K - Степень и квалификация каз
+        11: 'degree_qualification_ru',  # M - Степень и квалификация рус
+        12: 'speciality_ru',  # M - Степень и квалификация рус
+        13: 'degree_qualification_en',  # O - Степень и квалификация англ
+        14: 'speciality_en',  # O - Степень и квалификация англ
+        15: 'with_honors_kz',  # Q - с отличием каз
+        16: 'with_honors_ru',  # R - с отличием рус
+        17: 'with_honors_en',  # S - с отличием англ
+        18: 'specialty',  # T - Специальность
+        19: 'gpa',  # U - GPA
+        20: 'iin',  # V - ИИН
+        21: 'diploma_region',  # W - Регион
+        22: 'email',  # X - email
+        23: 'diploma_phone',  # Y - моб.тел
+        24: 'residence'  # Z - Место проживания
     }
 
     # Находим строку с заголовками (обычно первая строка с данными)
@@ -107,6 +105,8 @@ def is_empty_row(row_dict):
     """
     Проверяет, является ли строка пустой
     """
+    if type(row_dict['full_name_kz']) is float or str(row_dict['full_name_kz']) == 'nan':
+        return True
     values = [v for v in row_dict.values() if v is not None and str(v).strip() != '']
     return len(values) == 0
 
@@ -339,15 +339,15 @@ class DiplomaGenerator:
 
         # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
         date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
-        date_match_2 = re.search(r'(\d{1,2})[ /](\s)[ /](\d{4})', protocol_str)
+        date_match_2 = protocol_str.split(' ')
         if date_match:
             result["day"] = date_match.group(1)
             result["month"] = self._month_to_name(date_match.group(2), lang)
             result["year"] = date_match.group(3)
-        if date_match_2:
-            result["day"] = date_match.group(1)
-            result["month"] = date_match.group(2)
-            result["year"] = date_match.group(3)
+        if len(date_match_2) == 3:
+            result["day"] = date_match_2[0]
+            result["month"] = date_match_2[1].capitalize()
+            result["year"] = date_match_2[2]
 
         return result
 
@@ -431,7 +431,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_ru["year"],
             "protocol_number": protocol_ru["number"],
             "full_name": data.get("full_name_ru", "").upper(),
-            "specialty": data.get("specialty_ru", ""),
+            "specialty": data.get("speciality_ru", ""),
             "degree_qualification": data.get("degree_qualification_ru", ""),
             "form_of_training": "ОЧНАЯ",  # или из данных
             "registration_number": data.get("registration_number", ""),
@@ -448,7 +448,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_en["year"],
             "protocol_number": protocol_en["number"],
             "full_name": data.get("full_name_en", "").upper(),
-            "specialty": data.get("specialty_en", ""),
+            "specialty": data.get("speciality_en", ""),
             "degree_qualification": data.get("degree_qualification_en", ""),
             "form_of_training": "FULL-TIME",
             "issue_day": issue_date_en["day"],  # Заполняется вручную
@@ -464,14 +464,17 @@ class DiplomaGenerator:
             "protocol_year": protocol_kz["year"],
             "protocol_number": protocol_kz["number"],
             "full_name": data.get("full_name_kz", "").upper(),
-            "specialty": data.get("specialty_kz", ""),
+            "specialty": data.get("speciality_kz", ""),
             "degree_qualification": data.get("degree_qualification_kz", ""),
             "form_of_training": "ТОЛЫҚ",
             "issue_day": issue_date_kz["day"],  # Заполняется вручную
             "issue_month": issue_date_kz["month"],
             "issue_year": issue_date_kz["year"],
             "rector_name": rector_name_kz,
+            "registration_number": data.get("registration_number", ""),
         }
+        print("KAZ_DATA")
+        pprint(kaz_data)
 
         # Рисуем левую сторону
         for field_name, field_config in self.config.fields_left.items():
@@ -551,20 +554,24 @@ class DiplomaGenerator:
     def generate_batch(self, data_list: List[dict]) -> List[dict]:
         """Генерация пакета дипломов"""
         all_metadata = []
-        # cursor.execute(
-        #     f"UPDATE diploma_generations SET progress = 0, max_progress = {len(data_list)} where hash = '{self.config.hash}' and finished_at is null")
-        # connection.commit()
+        cursor.execute(
+            f"UPDATE diploma_generations SET progress = 0, max_progress = {len(data_list)} where hash = '{self.config.hash}' and finished_at is null")
+        connection.commit()
         for i, data in enumerate(data_list, start=1):
             try:
                 metadata = self.generate(data, counter=i)
+                print("DATA")
+                pprint(data)
+                exit(0)
                 diplomaSave(self.config.university_id, self.config.hash, metadata, i)
                 all_metadata.append(metadata)
             except Exception as e:
                 print(traceback.format_exc())
                 print(f"✗ Error generating diploma {i}: {e}")
         createFolderIfNotExists(f"./storage/jsons/{self.config.hash}/")
-        zip_folder(folder_path=f"storage/images/{self.config.hash}",
-                   zip_path=f"storage/archives/{self.config.hash}.zip")
+        createFolderIfNotExists(f"./storage/archives/")
+        zip_folder(folder_path=f"./storage/images/{self.config.hash}",
+                   zip_path=f"./storage/archives/{self.config.hash}.zip")
 
         with open(
                 f"./storage/jsons/{self.config.hash}/fullMetadata.json",
@@ -572,8 +579,8 @@ class DiplomaGenerator:
                 encoding="utf-8"
         ) as f:
             json.dump(all_metadata, f, ensure_ascii=False, indent=2)
-        # cursor.execute(f"UPDATE diploma_generations SET finished_at = now() where hash = '{self.config.hash}'")
-        # connection.commit()
+        cursor.execute(f"UPDATE diploma_generations SET finished_at = now() where hash = '{self.config.hash}'")
+        connection.commit()
         print(f"\n{'=' * 50}")
         print(f"Generated {len(all_metadata)} diplomas")
 
@@ -672,55 +679,55 @@ def diplomaSave(university_id, metadata_hash, item, counter):
         # Create file and set empty array with new value
         with open(file_path, 'w', encoding='utf-8') as file:
             json.dump([new_value], file, ensure_ascii=False, indent=4)
-    # query = (
-    #     "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
-    #     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
-    #     "RETURNING id"
-    # )
-    # cursor.execute(query,
-    #                (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3,
-    #                 True))
-    # user_id = cursor.fetchone()[0]
+    query = (
+        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    cursor.execute(query,
+                   (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3,
+                    True))
+    user_id = cursor.fetchone()[0]
     # create user end
-    print(email, password)
-    #
-    # query = (
-    #     "INSERT INTO diplomas("
-    #     "name_en, name_ru, name_kz, university_id, year, "
-    #     "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
-    #     ") "
-    #     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
-    #     "RETURNING id"
-    # )
-    # pprint(item)
-    # values = (
-    #     item["name_en"], item["name_ru"], item["name_kz"],
-    #     university_id, item["year_number"],
-    #     item["speciality_en"], item["speciality_ru"],
-    #     item["speciality_kz"],
-    #     image,
-    #     item["gpa"],
-    #     item["iin"],
-    #     False,
-    #     user_id
-    # )
-    # cursor.execute(query, values)
-    # diploma_id = cursor.fetchone()[0]
-    # connection.commit()
+    # print(email, password)
+
+    query = (
+        "INSERT INTO diplomas("
+        "name_en, name_ru, name_kz, university_id, year, "
+        "speciality_en, speciality_ru, speciality_kz, image, gpa, iin, visibility, user_id"
+        ") "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    pprint(item)
+    values = (
+        item["name_en"], item["name_ru"], item["name_kz"],
+        university_id, item["year_number"],
+        item["speciality_en"], item["speciality_ru"],
+        item["speciality_kz"],
+        image,
+        item["gpa"],
+        item["iin"],
+        False,
+        user_id
+    )
+    cursor.execute(query, values)
+    diploma_id = cursor.fetchone()[0]
+    connection.commit()
     # inserting additional fields
     for key, val in contentFields.items():
-        # query = (
-        #     "INSERT INTO content_fields(type, value, content_id) "
-        #     "VALUES (%s, %s, %s)"
-        # )
+        query = (
+            "INSERT INTO content_fields(type, value, content_id) "
+            "VALUES (%s, %s, %s)"
+        )
         val = json.dumps(val, ensure_ascii=False) if isinstance(val, dict) else val
-        # values = ("diploma_" + key, json.dumps(val, ensure_ascii=False), diploma_id)
-        # cursor.execute(query, values)
+        values = ("diploma_" + key, json.dumps(val, ensure_ascii=False), diploma_id)
+        cursor.execute(query, values)
 
-    # connection.commit()
+    connection.commit()
     print(f"Counter: {counter}")
-    # cursor.execute(f"UPDATE diploma_generations SET progress = {counter} where hash = '{metadata_hash}'")
-    # connection.commit()
+    cursor.execute(f"UPDATE diploma_generations SET progress = {counter} where hash = '{metadata_hash}'")
+    connection.commit()
 
 
 def generate_random_string(length):
@@ -801,7 +808,7 @@ KAZNU_BACHELOR = TemplateConfig(
             font_size=49, max_width=120, align="center"
         ),
         "specialty": TextField(
-            x_percent=27.5, y_percent=63.5,
+            x_percent=27.5, y_percent=63,
             font_size=49, max_width=120, align="center"
         ),
         "form_of_training": TextField(
@@ -809,8 +816,8 @@ KAZNU_BACHELOR = TemplateConfig(
             font_size=41, max_width=20
         ),
         "registration_number": TextField(
-            x_percent=10.0, y_percent=79.0,
-            font_size=41, max_width=10
+            x_percent=5.5, y_percent=92.2,
+            font_size=41, max_width=100
         ),
         "issue_day": TextField(
             x_percent=20.5 + 2.8, y_percent=89.8,
@@ -857,7 +864,7 @@ KAZNU_BACHELOR = TemplateConfig(
             font_size=49, max_width=120, align="center"
         ),
         "specialty": TextField(
-            x_percent=73.5, y_percent=63.5,
+            x_percent=73.5, y_percent=63,
             font_size=49, max_width=120, align="center"
         ),
         "form_of_training": TextField(
@@ -930,6 +937,10 @@ KAZNU_BACHELOR = TemplateConfig(
         "rector_name": TextField(
             x_percent=73.5, y_percent=75,
             font_size=50, max_width=50
+        ),
+        "registration_number": TextField(
+            x_percent=5.5, y_percent=92.2,
+            font_size=41, max_width=100
         ),
     },
     qr_enabled=True,
