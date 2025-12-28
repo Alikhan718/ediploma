@@ -55,7 +55,8 @@ def parse_complex_excel(file_path):
         21: 'diploma_region',  # W - Регион
         22: 'email',  # X - email
         23: 'diploma_phone',  # Y - моб.тел
-        24: 'residence'  # Z - Место проживания
+        24: 'residence',  # Z - Место проживания
+        25: 'full_name_ru_kz'  # Z - Место проживания
     }
 
     # Находим строку с заголовками (обычно первая строка с данными)
@@ -519,20 +520,20 @@ class DiplomaGenerator:
             "id": counter,
             "filename": f"{filename}.webp",
             "path": output_path,
-            "name_ru": data.get("full_name_ru", ""),
+            "name_ru": data.get("full_name_ru_kz", ""),
             "name_en": data.get("full_name_en", ""),
-            "name_kz": data.get("full_name_kz", ""),
+            "name_kz": data.get("full_name_ru_kz", ""),
             "email": data.get("email", ""),
             "degree_ru": data.get("degree_qualification_ru", ""),
             "degree_en": data.get("degree_qualification_en", ""),
             "degree_kz": data.get("degree_qualification_kz", ""),
-            "speciality_en": data.get("specialty_en", ""),
-            "speciality_kz": data.get("specialty_kz", ""),
-            "speciality_ru": data.get("specialty_ru", ""),
+            "speciality_en": data.get("speciality_en", ""),
+            "speciality_kz": data.get("speciality_kz", ""),
+            "speciality_ru": data.get("speciality_ru", ""),
             "speciality": {
-                "NameEn": data.get("specialty_en", ""),
-                "NameKz": data.get("specialty_kz", ""),
-                "NameRu": data.get("specialty_ru", ""),
+                "NameEn": data.get("speciality_en", ""),
+                "NameKz": data.get("speciality_kz", ""),
+                "NameRu": data.get("speciality_ru", ""),
             },
             "year_number": protocol_kz["year"],
             "Number": data.get("registration_number", ""),
@@ -553,7 +554,9 @@ class DiplomaGenerator:
         """Генерация пакета дипломов"""
         all_metadata = []
         cursor.execute(
-            f"UPDATE diploma_generations SET progress = 0, max_progress = {len(data_list)} where hash = '{self.config.hash}' and finished_at is null")
+            f"UPDATE diploma_generations "
+            f"SET progress = 0, max_progress = {len(data_list)} "
+            f"where hash = '{self.config.hash}' and finished_at is null")
         connection.commit()
         for i, data in enumerate(data_list, start=1):
             try:
