@@ -55,7 +55,8 @@ def parse_complex_excel(file_path):
         21: 'diploma_region',  # W - Регион
         22: 'email',  # X - email
         23: 'diploma_phone',  # Y - моб.тел
-        24: 'residence'  # Z - Место проживания
+        24: 'residence',  # Z - Место проживания
+        25: 'full_name_ru_kz'  # Z - Место проживания
     }
 
     # Находим строку с заголовками (обычно первая строка с данными)
@@ -333,9 +334,9 @@ class DiplomaGenerator:
         protocol_str = str(protocol_str).strip()
 
         # Ищем номер протокола
-        # number_match = protocol_str.split(' №')[-1]
-        # if number_match:
-        #     result["number"] = number_match
+        number_match = protocol_str.split(' №')[-1]
+        if number_match:
+            result["number"] = number_match
 
         # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
         date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
@@ -344,11 +345,14 @@ class DiplomaGenerator:
             result["day"] = date_match.group(1)
             result["month"] = self._month_to_name(date_match.group(2), lang)
             result["year"] = date_match.group(3)
-        if len(date_match_2) == 3:
+        if len(date_match_2) >= 3:
             result["day"] = date_match_2[0]
             result["month"] = date_match_2[1].capitalize()
             result["year"] = date_match_2[2]
-
+        print("protocol_str")
+        pprint(result)
+        print(date_match_2)
+        print(protocol_str)
         return result
 
     def _month_to_name(self, month_num: str, lang: str) -> str:
@@ -473,8 +477,6 @@ class DiplomaGenerator:
             "rector_name": rector_name_kz,
             "registration_number": data.get("registration_number", ""),
         }
-        print("KAZ_DATA")
-        pprint(kaz_data)
 
         # Рисуем левую сторону
         for field_name, field_config in self.config.fields_left.items():
@@ -521,20 +523,20 @@ class DiplomaGenerator:
             "id": counter,
             "filename": f"{filename}.webp",
             "path": output_path,
-            "name_ru": data.get("full_name_ru", ""),
+            "name_ru": data.get("full_name_ru_kz", ""),
             "name_en": data.get("full_name_en", ""),
-            "name_kz": data.get("full_name_kz", ""),
+            "name_kz": data.get("full_name_ru_kz", ""),
             "email": data.get("email", ""),
             "degree_ru": data.get("degree_qualification_ru", ""),
             "degree_en": data.get("degree_qualification_en", ""),
             "degree_kz": data.get("degree_qualification_kz", ""),
-            "speciality_en": data.get("specialty_en", ""),
-            "speciality_kz": data.get("specialty_kz", ""),
-            "speciality_ru": data.get("specialty_ru", ""),
+            "speciality_en": data.get("speciality_en", ""),
+            "speciality_kz": data.get("speciality_kz", ""),
+            "speciality_ru": data.get("speciality_ru", ""),
             "speciality": {
-                "NameEn": data.get("specialty_en", ""),
-                "NameKz": data.get("specialty_kz", ""),
-                "NameRu": data.get("specialty_ru", ""),
+                "NameEn": data.get("speciality_en", ""),
+                "NameKz": data.get("speciality_kz", ""),
+                "NameRu": data.get("speciality_ru", ""),
             },
             "year_number": protocol_kz["year"],
             "Number": data.get("registration_number", ""),
@@ -555,14 +557,13 @@ class DiplomaGenerator:
         """Генерация пакета дипломов"""
         all_metadata = []
         cursor.execute(
-            f"UPDATE diploma_generations SET progress = 0, max_progress = {len(data_list)} where hash = '{self.config.hash}' and finished_at is null")
+            f"UPDATE diploma_generations "
+            f"SET progress = 0, max_progress = {len(data_list)} "
+            f"where hash = '{self.config.hash}' and finished_at is null")
         connection.commit()
         for i, data in enumerate(data_list, start=1):
             try:
                 metadata = self.generate(data, counter=i)
-                print("DATA")
-                pprint(data)
-                exit(0)
                 diplomaSave(self.config.university_id, self.config.hash, metadata, i)
                 all_metadata.append(metadata)
             except Exception as e:
@@ -579,8 +580,8 @@ class DiplomaGenerator:
                 encoding="utf-8"
         ) as f:
             json.dump(all_metadata, f, ensure_ascii=False, indent=2)
-        cursor.execute(f"UPDATE diploma_generations SET finished_at = now() where hash = '{self.config.hash}'")
-        connection.commit()
+        # cursor.execute(f"UPDATE diploma_generations SET finished_at = now() where hash = '{self.config.hash}'")
+        # connection.commit()
         print(f"\n{'=' * 50}")
         print(f"Generated {len(all_metadata)} diplomas")
 
@@ -655,6 +656,17 @@ def diplomaSave(university_id, metadata_hash, item, counter):
         "email": email,
         "password": password,
     }
+
+    query = (
+        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "RETURNING id"
+    )
+    cursor.execute(query,
+                   (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3,
+                    True))
+    user_id = cursor.fetchone()[0]
+
     if os.path.exists(file_path):
         # Open file and read contents
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -679,15 +691,6 @@ def diplomaSave(university_id, metadata_hash, item, counter):
         # Create file and set empty array with new value
         with open(file_path, 'w', encoding='utf-8') as file:
             json.dump([new_value], file, ensure_ascii=False, indent=4)
-    query = (
-        "INSERT INTO users (name, first_name, last_name, middle_name, email, password, university_id, role_id, email_validated) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
-        "RETURNING id"
-    )
-    cursor.execute(query,
-                   (item["name_kz"], first_name, last_name, middle_name, email, hashed_password, university_id, 3,
-                    True))
-    user_id = cursor.fetchone()[0]
     # create user end
     # print(email, password)
 
@@ -763,19 +766,18 @@ def createFolderIfNotExists(folder_path):
 
 # Парсим данные
 print("\n=== ПАРСИНГ ДАННЫХ ===")
-# cursor.execute(
-#     "SELECT university_id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
-#     (8,))
-# existing_record = cursor.fetchone()
-# generation_hash, university_id = None, None
-# if existing_record:
-#     # If the record exists, return link to future archive
-#     university_id = existing_record[0]
-#     generation_hash = existing_record[1]
-# else:
-#     exit(0)
+cursor.execute(
+    "SELECT university_id, hash FROM diploma_generations WHERE university_id = %s and finished_at is null",
+    (8,))
+existing_record = cursor.fetchone()
+generation_hash, university_id = None, None
+if existing_record:
+    # If the record exists, return link to future archive
+    university_id = existing_record[0]
+    generation_hash = existing_record[1]
+else:
+    exit(0)
 
-generation_hash, university_id = 'None', None
 KAZNU_BACHELOR = TemplateConfig(
     name="kaznu_bachelor_ru_en",
     template_path="kaznu_bachelor_ru_en.webp",
