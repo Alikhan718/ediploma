@@ -40,10 +40,10 @@ def parse_complex_excel(file_path):
         6: 'protocol_date_number_kz',  # G - Дата и номер протокола каз
         7: 'protocol_date_number_ru',  # H - Дата и номер протокола рус
         8: 'protocol_date_number_en',  # I - Дата и номер протокола англ
-        9: 'degree_qualification_kz',  # K - Степень и квалификация каз
+        9: 'degree_qualification_kz',  # J - Степень и квалификация каз
         10: 'speciality_kz',  # K - Степень и квалификация каз
         11: 'degree_qualification_ru',  # M - Степень и квалификация рус
-        12: 'speciality_ru',  # M - Степень и квалификация рус
+        12: 'speciality_ru',  # N - Степень и квалификация рус
         13: 'degree_qualification_en',  # O - Степень и квалификация англ
         14: 'speciality_en',  # O - Степень и квалификация англ
         15: 'with_honors_kz',  # Q - с отличием каз
@@ -339,7 +339,7 @@ class DiplomaGenerator:
             result["number"] = number_match
 
         # Ищем дату в формате DD.MM.YYYY или DD/MM/YYYY
-        date_match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', protocol_str)
+        date_match = re.search(r'\b(0?[1-9]|[12][0-9]|3[01])[./](0?[1-9]|1[0-2])[./](\d{4})\b', protocol_str.split(' №')[0])
         date_match_2 = protocol_str.split(' ')
         if date_match:
             result["day"] = date_match.group(1)
@@ -435,7 +435,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_ru["year"],
             "protocol_number": protocol_ru["number"],
             "full_name": data.get("full_name_ru", "").upper(),
-            "specialty": data.get("speciality_ru", ""),
+            "specialty": data.get("speciality_ru", self._extract_specialty(data.get('specialty'), 'ru')),
             "degree_qualification": data.get("degree_qualification_ru", ""),
             "form_of_training": "ОЧНАЯ",  # или из данных
             "registration_number": data.get("registration_number", ""),
@@ -452,7 +452,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_en["year"],
             "protocol_number": protocol_en["number"],
             "full_name": data.get("full_name_en", "").upper(),
-            "specialty": data.get("speciality_en", ""),
+            "specialty": data.get("speciality_en", self._extract_specialty(data.get('specialty'), 'en')),
             "degree_qualification": data.get("degree_qualification_en", ""),
             "form_of_training": "FULL-TIME",
             "issue_day": issue_date_en["day"],  # Заполняется вручную
@@ -468,7 +468,7 @@ class DiplomaGenerator:
             "protocol_year": protocol_kz["year"],
             "protocol_number": protocol_kz["number"],
             "full_name": data.get("full_name_kz", "").upper(),
-            "specialty": data.get("speciality_kz", ""),
+            "specialty": data.get("speciality_kz", self._extract_specialty(data.get('specialty'), 'kz')),
             "degree_qualification": data.get("degree_qualification_kz", ""),
             "form_of_training": "ТОЛЫҚ",
             "issue_day": issue_date_kz["day"],  # Заполняется вручную
